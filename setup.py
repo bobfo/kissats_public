@@ -33,5 +33,4 @@ setup(
     keywords='ats simple test automation',
     packages=find_packages(exclude=['docs', 'tests*', '.git', '.vs']),
     install_requires=[]
-    ]
 )
