@@ -18,7 +18,7 @@ import os
 import sys
 import re
 
-import kissats
+# import kissats
 # sys.path.insert(0, os.path.abspath('.'))
 
 
