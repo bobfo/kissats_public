@@ -7,14 +7,10 @@ import os
 from setuptools import (setup,
                         find_packages)
 
-HERE = os.path.abspath(os.path.dirname(__file__))
-
-with open(os.path.join(HERE, 'kissats', 'VERSION'), "r") as version_file:
-    VERSION = version_file.read().strip()
 
 setup(
     name="kissats",
-    version=VERSION,
+    version="1.0.0a1",
     url="https://github.com/bobfo/kissats_public",
     author="Bob Folkes",
     author_email="bob@nwcompnet.com",
@@ -36,6 +32,6 @@ setup(
     ],
     keywords='ats simple test automation',
     packages=find_packages(exclude=['docs', 'tests*', '.git', '.vs']),
-    install_requires=[],
-    data_files=[("\\kissats\\", [".\\kissats\\VERSION"])]
+    install_requires=[]
+    ]
 )

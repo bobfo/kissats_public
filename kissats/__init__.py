@@ -27,11 +27,6 @@ from kissats.task_pack import TaskPack
 
 
 
-__version__ = None
+__version__ = "1.0.0a1"
 
-with open("{0}\\VERSION".format(
-    os.path.dirname(
-        os.path.abspath(
-            inspect.getfile(
-                inspect.currentframe())))), 'r') as f:
-    __version__ = f.readline()
+
