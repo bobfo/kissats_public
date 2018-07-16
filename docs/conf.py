@@ -18,7 +18,6 @@ import os
 import sys
 import re
 
-# import kissats
 # sys.path.insert(0, os.path.abspath('.'))
 
 
@@ -29,22 +28,10 @@ copyright = u'2018, Bob Folkes'
 author = u'Bob Folkes'
 
 
-def get_short_version():
-    """
-    Gets the short version (X.Y).
-
-    Returns:
-        str: The short version of this package.
-    """
-
-    m = re.search(r"(^\d+\.\d+)", kissats.__version__)
-    return m.groups(1)[0]
-
-
 # The short X.Y version
-version = get_short_version()
+version = 1.0
 # The full version, including alpha/beta/rc tags
-release = kissats.__version__
+release = 1.0.0a1
 
 
 # -- General configuration ---------------------------------------------------
@@ -206,7 +193,7 @@ epub_exclude_files = ['search.html']
 # -- Options for intersphinx extension ---------------------------------------
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'https://docs.python.org/': None}
+intersphinx_mapping = {'https://docs.python.org/2/': None}
 
 # -- Options for todo extension ----------------------------------------------
 
