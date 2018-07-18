@@ -12,7 +12,7 @@ logger.addHandler(logging.NullHandler())
 
 class KissATSError(Exception):
     """
-    Base exception for package
+    Base exception for package.
 
     """
 
@@ -21,7 +21,7 @@ class KissATSError(Exception):
 
 class MissingTestParamKey(KissATSError):
     """
-    required key missing in test parameter dictionary
+    Required key missing in test parameter dictionary.
 
     """
     pass
@@ -29,7 +29,7 @@ class MissingTestParamKey(KissATSError):
 
 class InvalidDut(KissATSError):
     """
-    Invalid DUT selected for task
+    Invalid DUT selected for task.
 
     """
     pass
@@ -37,7 +37,7 @@ class InvalidDut(KissATSError):
 
 class InvalidATS(KissATSError):
     """
-    Invalid ATS selected for task
+    Invalid ATS selected for task.
 
     """
     pass
@@ -45,7 +45,7 @@ class InvalidATS(KissATSError):
 
 class InvalidTask(KissATSError):
     """
-    Invalid task requested
+    Invalid task requested.
 
     """
     pass
@@ -53,7 +53,7 @@ class InvalidTask(KissATSError):
 
 class FailedPrereq(KissATSError):
     """
-    Task has a failed prereq task
+    Task has a failed prereq task.
 
     """
     pass
@@ -61,7 +61,7 @@ class FailedPrereq(KissATSError):
 
 class CriticalTaskFail(KissATSError):
     """
-    A critical task has failed
+    A critical task has failed.
 
     """
     pass
@@ -69,7 +69,7 @@ class CriticalTaskFail(KissATSError):
 
 class ResourceUnavailable(KissATSError):
     """
-    Unable to reserve requested resource
+    Unable to reserve requested resource.
 
     """
     pass
@@ -77,7 +77,7 @@ class ResourceUnavailable(KissATSError):
 
 class ServerCommandMissing(KissATSError):
     """
-    Server command missing in server request
+    Server command missing in server request.
 
     """
     pass
@@ -85,7 +85,7 @@ class ServerCommandMissing(KissATSError):
 
 class ResourceRetryExceeded(KissATSError):
     """
-    Too many task reservation retries
+    Too many task reservation retries.
 
     """
     pass
@@ -93,7 +93,7 @@ class ResourceRetryExceeded(KissATSError):
 
 class ResourceRenewExceeded(KissATSError):
     """
-    Too many task reservation renews
+    Too many task reservation renews.
 
     """
     pass
@@ -101,7 +101,7 @@ class ResourceRenewExceeded(KissATSError):
 
 class InvalidConfigRequest(KissATSError):
     """
-    An invalid request to reconfigure a resource was made
+    An invalid request to reconfigure a resource was made.
 
     """
     pass
@@ -109,7 +109,15 @@ class InvalidConfigRequest(KissATSError):
 
 class ResourceNotReady(KissATSError):
     """
-    Resource is not reserved or not ready
+    Resource is not reserved or not ready.
+
+    """
+    pass
+
+
+class InvalidResourceMode(KissATSError):
+    """
+    Invalid resource mode selected.
 
     """
     pass

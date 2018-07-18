@@ -187,7 +187,7 @@ class BaseATSClient(object):
 
         Returns:
             (dict): min keys:
-                        * available (bool) True if available
+                        * available (bool) True if available at the time requested
                         * avail_start (float)
                         * avail_end (float)
 
@@ -234,16 +234,16 @@ class BaseATSClient(object):
                             reservation_duration=3600.0,  # type: Optional[float]
                             next_available=True,          # type: Optional[bool]
                             reservation_mode="exclusive"  # type: Optional[str]
-                            ):
+                           ):
         # type: (...) -> tuple[str, float, float]
         """
         Request resource reservation with an optional configuration.
-        this will put a prelimanary lock on the resource, the final lock must
+        this will put a preliminary lock on the resource, the final lock must
         be requested after the time_available using claim_reservation
 
         Args:
             resource (str): The name of the resource requested
-            res_config (object): An object that can be serilized
+            res_config (object): An object that can be serialized
                                  for transmision to the server.
                                  This optional object will define the requested
                                  configuration.
@@ -256,7 +256,7 @@ class BaseATSClient(object):
             reservation_mode (str): "exclusive" or "shared", default "exclusive"
 
         Returns:
-            (tuple)
+            (tuple):
 
                 * (str): UUID of pre-reservation.
                 * (float): epoch time resource will be available
@@ -335,7 +335,7 @@ class BaseATSClient(object):
     def release_resource(self, reservation_id):
         # type: (str) -> bool
         """
-        Release a previously reservered resource
+        Release a previously reserved resource
 
         Args:
             reservation_id (str): reservation_id or pre-reservation_id

@@ -21,7 +21,7 @@ class ResourceReservation(object):
     An ATS Resource ...
 
     Args:
-        resouce_name(str): The name of the resource
+        resource_name(str): The name of the resource
         ats_client(BaseATSClient): ATS client class for
                                     communication to the ATS reservation system
         mode(str): "exclusive" or "shared", default "exclusive"
@@ -53,6 +53,36 @@ class ResourceReservation(object):
         self._requested_config = None
         self._returned_config = None
         self._reservation_mode = mode
+
+    def __eq__(self, other):
+
+        if other.__class__ is ResourceReservation:
+            return self.resource_name == other.resource_name
+        elif other.__class__ is str:
+            return self.resource_name == other
+
+        return self == other
+
+    def __ne__(self, other):
+
+        if other.__class__ is ResourceReservation:
+            return self.resource_name != other.resource_name
+        elif other.__class__ is str:
+            return self.resource_name != other
+
+        return self != other
+
+    def __del__(self):
+        self.release_reservation()
+
+    def __enter__(self):
+        if not self.request_reservation():
+            raise ResourceUnavailable
+        if not self.claim_reservation():
+            raise ResourceUnavailable
+
+    def __exit__(self, _type, _value, _traceback):
+        self.release_reservation()
 
     @property
     def resource_name(self):
@@ -117,6 +147,7 @@ class ResourceReservation(object):
         """
         Max amount of time to wait for the resource to become
         available
+
         Warning:
             If set to None, will wait indefinitely
 
@@ -143,8 +174,8 @@ class ResourceReservation(object):
     def pre_reservation_id(self):
         # type: ()-> str
         """
-        If reservation is claimed, value is None
-        If no reservation has been requested, value is None
+        * If reservation is claimed, value is None
+        * If no reservation has been requested, value is None
 
         """
 
@@ -154,7 +185,7 @@ class ResourceReservation(object):
     def pre_res_expire(self):
         # type: ()-> float
         """
-        experation time of the pre-reservation_id
+        expiration time of the pre_reservation_id
 
         """
 
@@ -205,7 +236,7 @@ class ResourceReservation(object):
 
         return self._first_request_time
 
-    def _add_retry(self):
+    def add_retry_count(self):
         """
         add another retry to the counter
         if retry count exceeds max retry, will raise
@@ -217,7 +248,7 @@ class ResourceReservation(object):
 
         self._retry_count += 1
         if self._retry_count > self._max_retry:
-            raise ResourceRetryExceeded()
+            raise ResourceRetryExceeded
 
     def claim_reservation(self):
         # type: ()-> bool
@@ -239,7 +270,7 @@ class ResourceReservation(object):
             self.resource_config = claim_reply['resource_config']
             return True
         else:
-            self._add_retry()
+            self.add_retry_count()
             self._pre_reservation_id = claim_reply['pre_reservation_id']
             self._start_time = claim_reply['new_avail']
             self._pre_res_expire = claim_reply['new_expire']
@@ -284,7 +315,24 @@ class ResourceReservation(object):
                 self.first_request_time = self.start_time
 
         except ResourceUnavailable:
-            self._add_retry()
+            self.add_retry_count()
             return False
 
         return True
+
+    def get_next_avail_time(self):
+        # type: () -> dict
+        """
+        Get the time when a resource will become available.
+
+        Returns:
+            (dict): min keys:
+                        * available (bool) True if available at the time requested
+                        * avail_start (float)
+                        * avail_end (float)
+
+        """
+
+        return self._ats_client.get_resource_availablity(self.resource_name,
+                                                         self.start_time,
+                                                         self.end_time)

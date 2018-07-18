@@ -7,12 +7,14 @@ Kiss ATS Task
 import logging
 import importlib
 import time
+from types import ModuleType
 
 from kissats import (KissATSError,
                      MissingTestParamKey,
                      InvalidDut,
                      InvalidATS,
-                     ResourceNotReady)
+                     ResourceNotReady,
+                     InvalidTask)
 
 from kissats.ats_resource import ResourceReservation
 
@@ -26,25 +28,37 @@ class Task(object):
     a task to run
 
     Args:
-        task_name(str): The importable name of the task to run
+        task_name(str or ModuleType): The importable name of the task to run or
+                                      a module
 
-                          .. note:: package.module format
+                                      Note:
+                                        If a str should be in package.module format
 
-        param_input(dict): Gloabal Dictonary of parameters used to configure the environment.
-                           This dictionary will also be passed to all functions of the task.
-        ats_client_in(kissats.BaseATSClient): instantiated ATS client class based on BaseATSClient
+        param_input(dict): Global dictonary of parameters used
+                           to configure the environment.
+                           This dictionary will also be passed
+                           to all functions of the task.
+
+        ats_client_in(BaseATSClient): instantiated ATS client class based on BaseATSClient
 
     """
 
-    def __init__(self, task_name, param_input, ats_client_in=None):
+    def __init__(self, task_in, param_input, ats_client_in=None):
         # type: (str, dict, kissats.BaseATSClient) -> None
         super(Task, self).__init__()
-        self._task_mod = importlib.import_module(task_name)
-        self.task_name = task_name
+
+        if task_in.__class__ is str:
+            self._task_mod = importlib.import_module(task_in)
+        elif task_in.__class__ is ModuleType:
+            self._task_mod = task_in
+        else:
+            raise InvalidTask("{0} is an invaid task".format(task_in))
+
+        self.task_name = self._task_mod.__name__
         if param_input is not None:
             self.param = param_input
         self._ats_client = ats_client_in
-        self._gloabal_params = dict()
+        self._global_params = dict()
         self._task_prereqs = None
         self._missing_keys = None
         self._task_params = None
@@ -79,7 +93,7 @@ class Task(object):
     @property
     def ats_client(self):
         """
-        instantiated ATS client class based on BaseATSClient
+        Instantiated ATS client class based on BaseATSClient
 
         """
 
@@ -93,7 +107,7 @@ class Task(object):
     @property
     def resource_list(self):
         """
-        List of resources need for task
+        List of resources needed for task
 
         """
 
@@ -103,18 +117,18 @@ class Task(object):
         return self._resource_list
 
     @property
-    def gloabal_params(self):
+    def global_params(self):
         """
-        Parameters to be passed to the task
+        Global Parameters to be passed to the task
 
         """
 
-        return self._gloabal_params
+        return self._global_params
 
-    @gloabal_params.setter
+    @global_params.setter
     def param(self, param_in):
 
-        self._gloabal_params = param_in
+        self._global_params = param_in
 
     @property
     def missing_keys(self):
@@ -152,7 +166,7 @@ class Task(object):
     def task_params(self):
         # type: (...) -> dict
         """
-        params of the task, this will call get_params
+        Run parameters of the task, this will call get_params
         on the task, expecting a dict with:
 
         Required Keys:
@@ -177,14 +191,14 @@ class Task(object):
             * extra_metadata, None
 
         Note:
-            resource_configs if present must have a key with the same name
-            as each resource listed in exclusive_resources and shared_resources.
+            resource_configs, if present, key names must be the same as
+            the resource listed in exclusive_resources or shared_resources.
             The value of this key will be passed to the ATS resource manager.
 
         """
 
         if self._task_params is None:
-            self._task_params = self._task_mod.get_params(self.gloabal_params)
+            self._task_params = self._task_mod.get_params(self.global_params)
             if (self._task_params['name'] is None or
                     self._task_params['description'] is None):
 
@@ -280,35 +294,68 @@ class Task(object):
         self._time_window = {'start': start_time, 'finish': end_time}
 
     def reserve_resources(self):
-        # type: () -> Bool
+        # type: () -> bool
         """
         Request reservations for all resources
 
+        Returns:
+            (bool):
+                True if all resources were reserved
+
         """
+
+        return_bool = True
         if self.ats_client is not None:
             for resource in self._resource_list:
-                resource.request_reservation(self._time_window['start'],
-                                             self._time_window['finish'])
+                request_status = resource.request_reservation(self._time_window['start'],
+                                                              self._time_window['finish'])
+                return_bool = return_bool and request_status
+
+        return return_bool
 
     def claim_resources(self):
-        # type: () -> Bool
+        # type: () -> bool
         """
         Claim all reservations
 
         """
         if self.ats_client is not None:
-            pass
+            for resource in self._resource_list:
+                if not resource.claim_reservation():
+                    # resource claim failed
+                    pass
 
     def release_resources(self):
         # type: () -> None
         """
-        Release all reservations
+        Release all reservations and clear time window
 
         """
 
         if self.ats_client is not None:
+            self._time_window = {'start': None, 'finish': None}
             for resource in self._resource_list:
                 resource.release_reservation()
+
+    def resource_delay(self):
+        # type: () -> bool
+        """
+        delay all resource reservations
+
+        Warning:
+            this method will reset the time_window
+
+        Returns:
+            (bool):
+                True if all resources are reserved
+
+        """
+
+        for resource in self._resource_list:
+            resource.add_retry_count()
+
+        self.release_resources()
+        return self.reserve_resources()
 
     def _run_task_func(self, func, run_mode):
         """
@@ -343,7 +390,7 @@ class Task(object):
         """
         results = dict()
         try:
-            results = func(self.gloabal_params)
+            results = func(self.global_params)
             if results is None:
                 results = dict()
         except (SystemExit, KeyboardInterrupt):
@@ -388,10 +435,11 @@ class Task(object):
 
         Warning:
             If always_teardown is True, task_teardown will execute
-            even if task_setup or run throw an exception.
+            even if task_setup or run raise an exception.
 
         Args:
             run_mode(str): The mode to run the task in, normal, process or thread
+
                            Note:
                                 Currently normal mode is the only mode supported.
 
@@ -454,9 +502,9 @@ class Task(object):
         if self.missing_keys:
             raise MissingTestParamKey(self.missing_keys)
         if not self.check_dut_valid():
-            raise InvalidDut(self.gloabal_params.get('dut_type'))
+            raise InvalidDut(self.global_params.get('dut'))
         if not self.check_ats_valid():
-            raise InvalidATS(self.gloabal_params.get('ats'))
+            raise InvalidATS(self.global_params.get('ats'))
         if not self.check_resources_ready():
             raise ResourceNotReady
 
@@ -468,9 +516,10 @@ class Task(object):
         check if all resources are reserved for the task
 
         Returns:
-            (bool): True if an ATS Client is regestered and
-                    all resources are reserved, will also
-                    return True if an ATS Client is not regestered
+            (bool):
+                True if an ATS Client is registered and
+                all resources are reserved, will also
+                return True if an ATS Client is not registered
 
         """
 
@@ -490,10 +539,10 @@ class Task(object):
         if "any" in (dut.lower() for dut in self.task_params['valid_duts']):
             return True
 
-        if self.gloabal_params.get('dut_type') in self.task_params['valid_duts']:
+        if self.global_params.get('dut') in self.task_params['valid_duts']:
             return True
         logger.warning("valid DUT check: %s not in %s",
-                       self.gloabal_params.get('dut_type'),
+                       self.global_params.get('dut'),
                        self.task_params['valid_duts'])
         return False
 
@@ -506,10 +555,10 @@ class Task(object):
         if "any" in (ats.lower() for ats in self.task_params['valid_ats']):
             return True
 
-        if self.gloabal_params.get('ats') in self.task_params['valid_ats']:
+        if self.global_params.get('ats') in self.task_params['valid_ats']:
             return True
         logger.warning("valid ATS check: %s not in %s",
-                       self.gloabal_params.get('ats'),
+                       self.global_params.get('ats'),
                        self.task_params['valid_ats'])
 
         return False

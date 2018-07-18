@@ -7,8 +7,14 @@ Public API Definitions
 Task Pack
 +++++++++
 
+Task
+++++
+
 ATS Client
 ++++++++++
+
+ATS Resource
+++++++++++++
 
 Known issues
 ------------
@@ -22,10 +28,10 @@ Future Improvements
 * Multi-threading support
 * Multi-processing support
 
-
-
 Todo
 ----
+
+.. todo::
 
     * Complete documentation
     * Spell check
@@ -33,4 +39,8 @@ Todo
     * Create sample test package
     * Create sample test sequence optimizer
     * Add type hints
+    * Implement additional resource modes
+    * Add more logging
+    * Break up task_pack
+    * DRY
 

@@ -10,7 +10,7 @@ from setuptools import (setup,
 
 setup(
     name="kissats",
-    version="1.0.0a1",
+    version="1.0.0a2",
     url="https://github.com/bobfo/kissats_public",
     author="Bob Folkes",
     author_email="bob@nwcompnet.com",

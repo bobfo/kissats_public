@@ -20,13 +20,11 @@ from kissats.exceptions import (KissATSError,
                                 ResourceRetryExceeded,
                                 InvalidConfigRequest,
                                 ResourceRenewExceeded,
-                                ResourceNotReady)
+                                ResourceNotReady,
+                                InvalidResourceMode)
 
 from kissats.ats_client import BaseATSClient
 from kissats.task_pack import TaskPack
 
 
-
-__version__ = "1.0.0a1"
-
-
+__version__ = "1.0.0a2"
