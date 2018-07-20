@@ -1,6 +1,7 @@
 KISS ATS
 ========
 
+A flexible Automated Test System to simplify testing and resource management.
 
 Contents:
 
@@ -14,7 +15,8 @@ Contents:
     kissats.task
     kissats.exceptions
     kissats.common
-
+    kissats.schemas.schemas
+    schemas
     sample_task
     sample_resource
 

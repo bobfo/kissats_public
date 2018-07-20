@@ -1,0 +1,61 @@
+# importable test/task package name, consumed on use
+task_package:
+    type: string
+    required: True
+    default: null
+    nullable: True
+# PIP compatible version string IE: >=1.0.0, consumed on use
+package_version:
+    type: string
+    default: null
+    nullable: True
+# test group to execute, consumed on use
+test_group:
+    type: string
+    default: null
+    nullable: True
+# ATS client for communication with the ATS resource manager, consumed on use
+ats_client:
+    type: string
+    default: null
+    nullable: True
+# any string not listed here will be considered a failure
+valid_task_result:
+    type: list
+    schema:
+        type: string
+    default: [Passed, Completed, Skipped]
+    required: True
+# Max number of threads to use in threading mode, consumed on use
+thread_limit:
+    type: integer
+    default: 5
+    required: True
+# Max number of processes touse in sub_process mode, consumed on use
+process_limit:
+    type: integer
+    default: 5
+    required: True
+# Resource reservation mode, consumed on use
+resource_mode:
+    type: string
+    allowed: [all, per_task_separate, per_task_combine, custom_all, custom_separate, custom_combine]
+    default: all
+    required: True
+# The Automated Test System
+ats:
+    type: string
+    required: True
+    default: null
+    nullable: True
+# The Device Under Test
+dut:
+    type: string
+    required: True
+    default: null
+    nullable: True
+# When ignore_prereq is set, all prereq checking will be ignored
+ignore_prereq:
+    type: boolean
+    required: True
+    default: False

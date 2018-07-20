@@ -121,3 +121,19 @@ class InvalidResourceMode(KissATSError):
 
     """
     pass
+
+
+class SchemaMisMatch(KissATSError):
+    """
+    Something didn't match the specified schema
+
+    """
+    pass
+
+
+class TaskPackageNotRegistered(KissATSError):
+    """
+    A method or function was attempted that requires
+    a valid task package to be registered.
+    """
+    pass

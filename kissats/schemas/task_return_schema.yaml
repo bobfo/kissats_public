@@ -1,0 +1,32 @@
+# result of the task, see global param 
+# schema for default non-failure strings
+result:
+    type: string
+    required: True
+# optional dictionary of extra metadata to be reported
+metadata:
+    type: dict
+    nullable: True
+    default: null
+    required: True
+# optional key for reporting multiple test results
+# via the registered reporting function
+multi_result:
+    type: list
+    nullable: True
+    default: null
+        schema:
+            name:
+                type: string
+                required: True
+            description:
+                type: string
+                required: True
+            result:
+                type: string
+                required: True
+            metadata:
+                type: dict
+                nullable: True
+                default: null
+                required: True

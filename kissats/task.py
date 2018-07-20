@@ -9,12 +9,12 @@ import importlib
 import time
 from types import ModuleType
 
-from kissats import (KissATSError,
-                     MissingTestParamKey,
-                     InvalidDut,
-                     InvalidATS,
-                     ResourceNotReady,
-                     InvalidTask)
+from kissats.exceptions import (KissATSError,
+                                MissingTestParamKey,
+                                InvalidDut,
+                                InvalidATS,
+                                ResourceNotReady,
+                                InvalidTask)
 
 from kissats.ats_resource import ResourceReservation
 
@@ -29,10 +29,10 @@ class Task(object):
 
     Args:
         task_name(str or ModuleType): The importable name of the task to run or
-                                      a module
+                                      a module containing the appropriate functions
 
                                       Note:
-                                        If a str should be in package.module format
+                                        If a str, should be in package.module format
 
         param_input(dict): Global dictonary of parameters used
                            to configure the environment.
@@ -41,33 +41,42 @@ class Task(object):
 
         ats_client_in(BaseATSClient): instantiated ATS client class based on BaseATSClient
 
+        allow_ducks(bool): Quack at your own risk!
+
     """
 
-    def __init__(self, task_in, param_input, ats_client_in=None):
-        # type: (str, dict, kissats.BaseATSClient) -> None
+    def __init__(self, task_in, global_params_in, ats_client_in=None, allow_ducks=False):
+        # type: (str, dict, kissats.BaseATSClient, bool) -> None
         super(Task, self).__init__()
 
         if task_in.__class__ is str:
             self._task_mod = importlib.import_module(task_in)
         elif task_in.__class__ is ModuleType:
             self._task_mod = task_in
+        elif allow_ducks:
+            self._task_mod = task_in
         else:
             raise InvalidTask("{0} is an invaid task".format(task_in))
 
         self.task_name = self._task_mod.__name__
-        if param_input is not None:
-            self.param = param_input
-        self._ats_client = ats_client_in
+
         self._global_params = dict()
-        self._task_prereqs = None
+        if global_params_in is not None:
+            self.global_params = global_params_in
+        self._ats_client = ats_client_in
+
         self._missing_keys = None
         self._task_params = None
+
+        self._time_window = {'start': None, 'finish': None}
+        self._resource_list = None
+
+        # retrieved from task
+        self._task_prereqs = None
         self._time_estimate = None
         self._priority = None
-        self._time_window = {'start': None, 'finish': None}
         self._thread_safe = False
         self._process_safe = False
-        self._resource_list = None
 
     def __eq__(self, other):
 
@@ -126,7 +135,7 @@ class Task(object):
         return self._global_params
 
     @global_params.setter
-    def param(self, param_in):
+    def global_params(self, param_in):
 
         self._global_params = param_in
 
@@ -140,7 +149,7 @@ class Task(object):
         self._missing_keys = list()
         task_keys = self.task_params['req_param_keys']
         for key in task_keys:
-            if key not in self.param:
+            if key not in self.global_params:
                 self._missing_keys.append(key)
         return self._missing_keys
 
@@ -189,6 +198,7 @@ class Task(object):
             * prereq_tasks, list()
             * est_test_time, 3600
             * extra_metadata, None
+            * priority, 5
 
         Note:
             resource_configs, if present, key names must be the same as
@@ -397,8 +407,8 @@ class Task(object):
             raise
         except Exception, err:
             logger.exception(err)
-            results['test_status'] = "Exception"
-            results['test_result'] = err
+            results['task_result'] = "Exception"
+            results['task_metadata'] = {"exception_details": err}
         return results
 
     def _run_thread(self, func):
@@ -534,7 +544,13 @@ class Task(object):
         """
         check if task is valid for the DUT
 
+        If DUT is not specified in global params
+        this method will return True
+
         """
+
+        if self.global_params.get('dut') is None:
+            return True
 
         if "any" in (dut.lower() for dut in self.task_params['valid_duts']):
             return True
@@ -550,7 +566,13 @@ class Task(object):
         """
         check if task is valid for the ATS
 
+        If ATS is not specified in global params
+        this method will return True
+
         """
+
+        if self.global_params.get('ats') is None:
+            return True
 
         if "any" in (ats.lower() for ats in self.task_params['valid_ats']):
             return True

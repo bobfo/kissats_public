@@ -1,7 +1,8 @@
 """
-Task package
+Task Package manager
 
 """
+
 
 from collections import deque
 import importlib
@@ -11,16 +12,19 @@ import sys
 import time
 from types import ModuleType
 
-
 from kissats.common import pip_in_package
 from kissats.task import Task
-from kissats import (KissATSError,
-                     InvalidTask,
-                     FailedPrereq,
-                     CriticalTaskFail,
-                     ResourceRetryExceeded,
-                     ResourceUnavailable,
-                     InvalidResourceMode)
+from kissats.exceptions import (KissATSError,
+                                InvalidTask,
+                                FailedPrereq,
+                                CriticalTaskFail,
+                                ResourceRetryExceeded,
+                                ResourceUnavailable,
+                                InvalidResourceMode,
+                                TaskPackageNotRegistered)
+
+from kissats.schemas import MASTER_SCHEMAS
+from kissats.schemas.schemas import normalize_and_validate
 
 
 logger = logging.getLogger(__name__)
@@ -31,116 +35,26 @@ class TaskPack(object):
     """
     Imports the task package and executes tasks
 
+    see :ref:`global_parameters_schema`
+
     Args:
-        task_package (str): importable test/task package name
-        task_version (str): (Optonal) PIP compatible version string IE: >=1.0.0
-        params_input (dict): (Optonal) paramater dict for all tasks
-        test_group_in (str): (Optonal) test group to execute
-        ats_client (str): (Optonal) ats_client module containing the ATS_Client
-                          class to import and instantiate for resource
-                          management, if None, no client will be used.
+        init_params (dict): Initialization paramater dict. see XXXXX
+        schema_add (dict): (Optional) Additional
+                           `Cerberus <http://docs.python-cerberus.org/en/stable/>`_
+                           schema definition to be applied to the init_params
 
-                          Note:
-                             if set to "auto", we will attempt to first
-                             import an ATS client based on the ATS name
-                             provided in the params_input, if that fails,
-                             we will attempt to pip install, then
-                             import, if that fails a KissATSError will
-                             be raised
-
-        resource_mode (str): (Optonal) Resource reservation mode:
-
-                                Warning:
-                                    "all" is the only mode currently implemented
-
-                                * "all" Will reserve all resources needed
-                                  by all tasks for the estimated duration
-                                  of the run. **This is the default mode**
-
-                                * "per_task_separate" Will reserve resources
-                                  on a task by task basis as each task is
-                                  run. Each task will hold its own set of
-                                  resources.
-
-                                * "per_task_combine" Will reserve resources
-                                  on a task by task basis as each task is
-                                  run. Resources common to tasks
-                                  will be consolidated.
-
-                                * "custom_all" The que selected for execution
-                                  will be passed to the function registered
-                                  with schedule_func for ordering. Resource
-                                  management will be handled the same as
-                                  "all"
-
-                                * "custom_separate" The que selected for execution
-                                  will be passed to the function registered
-                                  with schedule_func for ordering. Resource
-                                  management will be handled the same as
-                                  "per_task_separate"
-
-                                * "custom_combine" The que selected for execution
-                                  will be passed to the function registered
-                                  with schedule_func for ordering. Resource
-                                  management will be handled the same as
-                                  "per_task_combine"
-
-                                Note:
-                                    For all custom modes, a scheduler function
-                                    must be regesiterd with schedule_func before
-                                    calling any run que methods.
+    Note:
+        If task_package is not supplied in the init_params, tasks must be added
+        using the appropriate add task method. Any method that depends on a valid
+        task_package will raise.
 
     """
 
-    def __init__(self, task_package, task_version=None, params_input=None,
-                 test_group_in=None, ats_client=None, resource_mode="all"):
+    def __init__(self, init_params=None, schema_add=None):
 
         super(TaskPack, self).__init__()
-        try:
-            self._task_pack = importlib.import_module(task_package)
-        except ImportError:
-            if task_version is not None:
-                pip_str = task_package + task_version
-            else:
-                pip_str = task_package
-            if pip_in_package(pip_str):
-                 raise KissATSError("package {0} "
-                                   "failed to install".format(pip_str))
-            self._task_pack = importlib.import_module(task_package)
 
-        self._setup_list = None
-        self._task_list = None
-        self._teardown_list = None
-        self._params = None
-        self._task_prereqs = None
-        self._setup_prereqs = None
-        self._ignore_prereq = None
-        self._report_func = None
-        self._schedule_func = None
-        self._completed_tasks = dict()
-        self._valid_task_result = None
-        self._ats_client = ats_client
-        self._json_params = None
-        self._thread_limit = 5
-        self._process_limit = 5
-        self._est_run_time = 3600
-        self._all_resources = list()
-        self._use_scheduler = False
-        self._combine_resources = True
-        self._claim_per_task = False
-        self._resource_mode = None
-        self.resource_mode = resource_mode
-        self._test_que = deque()
-        self._setup_que = deque()
-        self._teardown_que = deque()
-        self._delay_que = list()
-
-        self.params = params_input
-        self._active_que = self._setup_que
-        if test_group_in is not None:
-            self.add_test_group(test_group_in)
-
-
+        # switch case for resource modes
         # Tuple: use_scheduler, combine_resource, claim_per_task
         self._resource_modes_switch = {
             "all": (False, True, False),
@@ -150,6 +64,130 @@ class TaskPack(object):
             "custom_separate": (True, False, True),
             "custom_combine": (True, True, True)
             }
+
+        if init_params is None:
+            init_params = dict()
+
+        self._addition_schema = schema_add
+        self._params = None
+
+        # these are set from the init_params
+        self._task_pack = None
+        self._ats_client = None
+        self._thread_limit = None
+        self._process_limit = None
+        self._resource_mode = None
+        self._ignore_prereq = None
+        self._valid_task_result = None
+        self._dut = None
+        self._ats = None
+        # a flat representaion of the params
+        self._json_params = None
+        # these optional values are set by the user
+        self._report_func = None
+        self._schedule_func = None
+
+        # these are set by the property resource_mode
+        self._use_scheduler = False
+        self._combine_resources = True
+        self._claim_per_task = False
+
+        # these are built by the class
+        self._completed_tasks = dict()
+        self._est_run_time = 3600
+        self._all_resources = list()
+        self._setup_list = None
+        self._teardown_list = None
+
+        # build the ques
+        self._test_que = deque()
+        self._setup_que = deque()
+        self._teardown_que = deque()
+        self._delay_que = list()
+        self._active_que = self._setup_que
+        # do some init stuff
+        self.params = init_params
+        self.resource_mode = self.params.pop('resource_mode')
+        self.thread_limit = self.params.pop('thread_limit')
+        self.process_limit = self.params.pop('process_limit')
+        self.ats_client = self.params.pop('ats_client')
+
+        if self.params['test_group'] is not None:
+            self.add_test_group(self.params.pop('test_group'))
+
+    @property
+    def task_pack(self):
+        """
+        the package containing the tasks to run
+
+        Warning:
+            If set manually, must be set to a module.
+
+            .. code-block:: python
+
+               TaskPack.task_pack = importlib.import_module("task_package")
+
+        """
+
+        if (self._task_pack is None and
+                self.params.get('task_package') is not None):
+
+            task_package = self.params.pop('task_package')
+            package_ver = self.params.pop('package_version')
+
+            try:
+                self._task_pack = importlib.import_module(task_package)
+            except ImportError:
+                if package_ver is not None:
+                    _pip_str = task_package + package_ver
+                else:
+                    _pip_str = task_package
+                if pip_in_package(_pip_str):
+                    raise KissATSError("package {0} "
+                                       "failed to install".format(_pip_str))
+                self._task_pack = importlib.import_module(task_package)
+
+        return self._task_pack
+
+    @task_pack.setter
+    def task_pack(self, new_pack):
+        self._task_pack = new_pack
+
+    @property
+    def dut(self):
+        """
+        The Device Under Test
+
+        """
+
+        if (self._dut is None and
+                self.params.get('dut') is not None):
+
+            self._dut = self.params.pop('dut')
+
+        return self._dut
+
+    @dut.setter
+    def dut(self, dut_in):
+        self._dut = dut_in
+
+    @property
+    def ats(self):
+        """
+        The Automated Test System used to perform the testing
+
+        """
+
+        if (self._ats is None and
+                self.params.get('ats') is not None):
+
+            self._ats = self.params.pop('ats')
+
+        return self._ats
+
+    @ats.setter
+    def ats(self, ats_in):
+        self._ats = ats_in
 
     @property
     def est_run_time(self):
@@ -172,6 +210,9 @@ class TaskPack(object):
 
         """
 
+        if self._resource_mode is None:
+            self.resource_mode = self._params.pop('resource_mode')
+
         return self._resource_mode
 
     @resource_mode.setter
@@ -191,7 +232,7 @@ class TaskPack(object):
     def all_resources(self):
         """
         A list of all resources (ResourceReservation)
-        needed for tasks in all que's
+        needed for tasks currently in any que
 
         """
 
@@ -203,15 +244,19 @@ class TaskPack(object):
         The global parameter dict
 
         """
-        if self._params is not None:
-            self._params['task_pack'] = self
 
         return self._params
 
     @params.setter
     def params(self, params_in):
 
-        self._params = params_in
+        _valid_schema = dict()
+        if self._addition_schema is not None:
+            _valid_schema = self._addition_schema
+        _valid_schema.update(MASTER_SCHEMAS.global_param_schema)
+
+        self._params = normalize_and_validate(params_in, _valid_schema)
+        self._params['task_pack'] = self
 
     @property
     def json_params(self):
@@ -240,7 +285,7 @@ class TaskPack(object):
 
         """
         if self._valid_task_result is None:
-            self._valid_task_result = ["Passed", "Completed", "Skipped"]
+            self._valid_task_result = self._params.pop('valid_task_result')
 
         return self._valid_task_result
 
@@ -258,8 +303,12 @@ class TaskPack(object):
         module in the task_package to populate the list.
 
         """
+
+        if self.task_pack is None:
+            raise TaskPackageNotRegistered()
+
         if self._setup_list is None:
-            setup_seq = importlib.import_module("{0}.{1}".format(self._task_pack.__name__,
+            setup_seq = importlib.import_module("{0}.{1}".format(self.task_pack.__name__,
                                                                  "seq_setup"))
             self._setup_list = setup_seq.get_global_setup(self.params)
         return self._setup_list
@@ -273,9 +322,13 @@ class TaskPack(object):
         module in the task_package to populate the list.
 
         """
-        if self._setup_list is None:
+
+        if self.task_pack is None:
+            raise TaskPackageNotRegistered()
+
+        if self._teardown_list is None:
             try:
-                setup_seq = importlib.import_module("{0}.{1}".format(self._task_pack.__name__,
+                setup_seq = importlib.import_module("{0}.{1}".format(self.task_pack.__name__,
                                                                      "seq_teardown"))
                 self._teardown_list = setup_seq.get_global_teardown(self.params)
             except ImportError:
@@ -291,7 +344,7 @@ class TaskPack(object):
         """
 
         if self._ignore_prereq is None:
-            self._ignore_prereq = False
+            self.ignore_prereq = self.params.pop("ignore_prereq")
         return self._ignore_prereq
 
     @ignore_prereq.setter
@@ -345,9 +398,12 @@ class TaskPack(object):
     def thread_limit(self):
         # type: () -> int
         """
-        Function to report results
+        Max additional threads to run
 
         """
+
+        if self._thread_limit is None:
+            self._thread_limit = self.params.pop('thread_limit')
 
         return self._thread_limit
 
@@ -360,9 +416,12 @@ class TaskPack(object):
     def process_limit(self):
         # type: () -> int
         """
-        Function to report results
+        Max additional processes to run
 
         """
+
+        if self._process_limit is None:
+            self._process_limit = self.params.pop('process_limit')
 
         return self._process_limit
 
@@ -375,8 +434,6 @@ class TaskPack(object):
     def ats_client(self):
         """
         The ATS client for communication with the ATS
-
-
 
         """
 
@@ -514,6 +571,11 @@ class TaskPack(object):
 
             top(bool): Place the task at the top of the que
 
+        Warning:
+            If dut and/or ats are not set in the TaskPack, the
+            dut and/or ats will not be verified and the task
+            will be added to the que
+
         Note:
             Task input handling:
 
@@ -590,12 +652,12 @@ class TaskPack(object):
             # it's already in the que, return a True
             return True
 
-        if not task_to_add.check_dut_valid():
+        if self.dut is not None and not task_to_add.check_dut_valid():
             logger.warning("unable to add %s due to "
                            "invlaid DUT selected", task_to_add.task_name)
             return False
 
-        if not task_to_add.check_ats_valid():
+        if self.ats is not None and not task_to_add.check_ats_valid():
             logger.warning("unable to add %s due to "
                            "invlaid ATS selected", task_to_add.task_name)
             return False
@@ -662,11 +724,14 @@ class TaskPack(object):
         """
 
         if task.__class__ is str:
+
             try:
                 imported_task = Task(task, self.params, self.ats_client)
             except ImportError:
                 try:
-                    pack_task = "{0}.{1}".format(self._task_pack.__name__,
+                    if self.task_pack is None:
+                        raise TaskPackageNotRegistered()
+                    pack_task = "{0}.{1}".format(self.task_pack.__name__,
                                                  task)
                     imported_task = Task(pack_task, self.params, self.ats_client)
                 except ImportError:
@@ -700,6 +765,8 @@ class TaskPack(object):
                                 in the test package's seq_test
 
         """
+        if self.task_pack is None:
+            raise TaskPackageNotRegistered()
         tg_to_add = self.get_test_group(test_group)
         for test_task in tg_to_add:
             self.add_test_task(test_task)
@@ -720,7 +787,10 @@ class TaskPack(object):
 
         """
 
-        test_seq = importlib.import_module("{0}.{1}".format(self._task_pack.__name__,
+        if self.task_pack is None:
+            raise TaskPackageNotRegistered()
+
+        test_seq = importlib.import_module("{0}.{1}".format(self.task_pack.__name__,
                                                             "seq_test")) # flake8: noqa F841
         test_group = "get_{0}_tests".format(test_group)
         tg_func = getattr(test_seq, test_group)
@@ -748,7 +818,7 @@ class TaskPack(object):
                 logger.debug("prereq compare: %s prereq "
                              " to complete task %s", prereq, c_test)
                 if ((prereq == c_test) or
-                        (("{0}.{1}".format(self._task_pack.__name__,
+                        (("{0}.{1}".format(self.task_pack.__name__,
                                            prereq)) == c_test)):
                     prereq_run = True
                     if result in self.valid_task_result:
@@ -761,15 +831,25 @@ class TaskPack(object):
 
         return prereqs_needed, failed_prereqs
 
-    def run_setup_que(self):
-        """
-        run all tasks in setup que
-
+    def run_all_que(self):
         """
 
-        self._active_que = self._setup_que
-        if not self._claim_per_task:
+        If ATS client is regestered and resource mode is set to
+        "all" or "custom_all", all resources will be reserved and
+        claimed. When complete, all resources will be released.
 
+        WIll run all que's in order:
+            * setup
+            * test
+            * teardown
+
+        """
+
+        use_resources = False
+        if self.ats_client and (self.resource_mode not in ['all', 'all_custom']):
+            raise KissATSError("invalid Resoure Run Mode for run method")
+        else:
+            use_resources = True
             self._reserve_all_resources()
             last_available_time = time.time()
             for resource in self._all_resources:
@@ -782,10 +862,32 @@ class TaskPack(object):
             for resource in self.all_resources:
                 try:
                     if not resource.claim_reservation():
-                        raise ResourceUnavailable("Unable to claim resource {0}".format(resource.resource_name))
+                        raise ResourceUnavailable("Unable to claim resource "
+                                                  "{0}".format(resource.resource_name))
                 except (ResourceRetryExceeded, ResourceUnavailable):
                     self._release_all_resources()
-                    raise ResourceUnavailable("Unable to claim resource {0}".format(resource.resource_name))
+                    raise ResourceUnavailable("Unable to claim resource "
+                                              "{0}".format(resource.resource_name))
+        self.run_setup_que()
+        if self.schedule_func is not None:
+            self.schedule_func(self._test_que)
+        self.run_test_que()
+        self.run_teardown_que()
+
+        if use_resources:
+            for resource in self.all_resources:
+                resource.release_reservation()
+
+    def run_setup_que(self):
+        """
+        run all tasks in setup que
+
+        """
+
+        self._active_que = self._setup_que
+        if not self._claim_per_task:
+            pass
+
         self._exec_active_que()
 
     def run_test_que(self):
@@ -806,8 +908,7 @@ class TaskPack(object):
         self._active_que = self._teardown_que
         self._exec_active_que()
         if not self._claim_per_task:
-            for resource in self.all_resources:
-                resource.release_reservation()
+            pass
 
     def _reserve_all_resources(self):
         """
@@ -893,7 +994,6 @@ class TaskPack(object):
         if self._use_scheduler:
             self._call_scheduler()
 
-
         while True:
             result = dict()
 
@@ -948,7 +1048,6 @@ class TaskPack(object):
                     result['task_metadata'] = {'message': warn_msg}
                     self._record_result(task_to_run, result)
                     continue
-
 
             # reserve per task resources here, if task has a pre-reservation ID, pass that to
             # reservation system

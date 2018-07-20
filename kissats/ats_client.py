@@ -7,8 +7,8 @@ import abc
 import logging
 import time
 
-from kissats import ServerCommandMissing
-from kissats import ResourceUnavailable
+from kissats.exceptions import ServerCommandMissing
+from kissats.exceptions import ResourceUnavailable
 
 
 logger = logging.getLogger(__name__)

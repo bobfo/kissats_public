@@ -1,0 +1,110 @@
+# task name, typicly the module __name__
+name:
+    type: string
+    required: True
+# short description of the task
+description:
+    type: string
+    required: True
+# if this task fails, stop all further testsing
+stop_suite_on_fail:
+    type: boolean
+    default: True
+    required: True
+#
+exclusive_resources:
+    type: list
+    default: []
+    schema:
+        type: string
+    required: True
+#
+shared_resources:
+    type: list
+    default: []
+    schema:
+        type: string
+    required: True
+# configurations to be passed to the resource manager
+# for each resource. Key name must match a resource,
+# the value will be passed to the resource manager
+resource_configs:
+    type: dict
+    default: {}
+    required: True
+# if resources are busy, max number of times to retry
+max_resource_retry:
+    type: integer
+    default: 5
+    required: True
+#
+thread_safe:
+    type: boolean
+    default: False
+    required: True
+#
+process_safe:
+    type: boolean
+    default: False
+    required: True
+#
+valid_ats:
+    type: list
+    default: [any]
+    schema:
+        type: string
+    required: True
+# 
+valid_duts:
+    type: list
+    default: [any]
+    schema:
+        type: string
+    required: True
+# keys required to be present in the global 
+# parameter dictionary
+req_param_keys:
+    type: list
+    default: []
+    schema:
+        type: string
+    required: True
+# optional keys that will be used if present
+# in the global parameter dictionary
+optional_param_keys:
+    type: list
+    default: []
+    schema:
+        type: string
+    required: True
+# tasks that must successfully run before this task can run
+prereq_tasks:
+    type: list
+    default: []
+    schema:
+        type: string
+    required: True
+# estimated test time in seconds (including optional
+# task_setup and task_teardown execution time)
+est_task_time:
+    type: integer
+    default: 3600
+    required: True
+# if true, will always run teardown regardless of completion
+# status of setup or run
+always_teardown:
+    type: boolean
+    default: False
+    required: True
+# other data to pass to the class, must be JSON
+# serializable if thread_safe or process_safe are true
+extra_metadata:
+    type: dict
+    default: null
+    nullable: True
+# priorty level of the task, lower is given more
+# prefence in multiprocess and threading modes
+priority:
+    type: integer
+    default: 5
+    required: True

@@ -1,8 +1,8 @@
 Readme
 ======
 
-Public API Definitions
-----------------------
+Public API Summery
+------------------
 
 Task Pack
 +++++++++
@@ -33,14 +33,16 @@ Todo
 
 .. todo::
 
+    * Add quick start guide
+    * Add schema check to reporting/result return
+    * Update Task to use schemas
     * Complete documentation
-    * Spell check
     * Create sample ATS resource manager (server)
     * Create sample test package
     * Create sample test sequence optimizer
-    * Add type hints
+    * Finish adding type hints
     * Implement additional resource modes
     * Add more logging
-    * Break up task_pack
+    * Break up task_pack?
     * DRY
 

@@ -7,9 +7,9 @@ Base resource class
 import logging
 import time
 
-from kissats import ResourceUnavailable
-from kissats import ResourceRetryExceeded
-from kissats import InvalidConfigRequest
+from kissats.exceptions import ResourceUnavailable
+from kissats.exceptions import ResourceRetryExceeded
+from kissats.exceptions import InvalidConfigRequest
 
 
 logger = logging.getLogger(__name__)

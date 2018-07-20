@@ -3,15 +3,13 @@ Setup for KISS ATS
 
 """
 
-import os
 from setuptools import (setup,
                         find_packages)
 
-
 setup(
     name="kissats",
-    version="1.0.0a2",
-    url="https://github.com/bobfo/kissats_public",
+    version="1.0.0a3",
+    url="https://kissats-public.readthedocs.io/en/latest/index.html",
     author="Bob Folkes",
     author_email="bob@nwcompnet.com",
     description=("A simple ATS"),
@@ -32,5 +30,8 @@ setup(
     ],
     keywords='ats simple test automation',
     packages=find_packages(exclude=['docs', 'tests*', '.git', '.vs']),
-    install_requires=[]
+    package_data={"kissats": ["schemas/*.yaml"]},
+    install_requires=["pathlib2",
+                      "pyyaml",
+                      "cerberus"]
 )

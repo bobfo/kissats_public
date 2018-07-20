@@ -18,8 +18,6 @@ import os
 import sys
 import re
 
-# sys.path.insert(0, os.path.abspath('.'))
-
 
 # -- Project information -----------------------------------------------------
 
@@ -28,10 +26,22 @@ copyright = u'2018, Bob Folkes'
 author = u'Bob Folkes'
 
 
+def get_short_version():
+    """
+    Gets the short version (X.Y).
+
+    Returns:
+        str: The short version of this package.
+    """
+
+    m = re.search(r"(^\d+\.\d+)", kissats.__version__)
+    return m.groups(1)[0]
+
+
 # The short X.Y version
-version = '1.0.0a2'
+version = "1.0.0a3"
 # The full version, including alpha/beta/rc tags
-release = '1.0.0a2'
+release = "1.0.0a3"
 
 
 # -- General configuration ---------------------------------------------------
@@ -49,7 +59,8 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.ifconfig',
     'sphinx.ext.githubpages',
-    'sphinx.ext.napoleon'
+    'sphinx.ext.napoleon',
+    'sphinxarg.ext'
 ]
 
 # Add any paths that contain templates here, relative to this directory.

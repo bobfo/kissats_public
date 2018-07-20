@@ -1,0 +1,14 @@
+name:
+    type: string
+    required: True
+description:
+    type: string
+    required: True
+result:
+    type: string
+    required: True
+metadata:
+    type: dict
+    nullable: True
+    default: null
+    required: True
