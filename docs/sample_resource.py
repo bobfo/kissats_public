@@ -1,7 +1,4 @@
-"""
-Some sample resources
-
-"""
+"""Some sample resources"""
 
 
 import logging

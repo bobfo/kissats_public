@@ -1,11 +1,10 @@
-"""
-The base ATS Client class(es) for KISS ATS
-
-"""
+"""The base ATS Client class(es) for KISS ATS"""
 
 import abc
 import logging
 import time
+
+import six
 
 from kissats.exceptions import ServerCommandMissing
 from kissats.exceptions import ResourceUnavailable
@@ -15,15 +14,11 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
+@six.add_metaclass(abc.ABCMeta)
 class BaseATSClient(object):
-    """
-    Base ATS Client Class
+    """Base ATS Client Class"""
 
-    """
-
-    __metaclass__ = abc.ABCMeta
-
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
 
         super(BaseATSClient, self).__init__()
 
@@ -32,10 +27,8 @@ class BaseATSClient(object):
 
     @property
     def ats_server(self):
-        """
-        The address of the ATS Server
+        """The address of the ATS Server"""
 
-        """
         return self._ats_server
 
     @ats_server.setter
@@ -46,10 +39,7 @@ class BaseATSClient(object):
     @abc.abstractmethod
     def _connect_server(self):
         # type: () -> bool
-        """
-        Connect the ATS client to the ATS server
-
-        """
+        """Connect the ATS client to the ATS server"""
 
         self._connected = True
 
@@ -58,10 +48,7 @@ class BaseATSClient(object):
     @abc.abstractmethod
     def _disconnect_server(self):
         # type: () -> bool
-        """
-        Disconnect the ATS client from the ATS server
-
-        """
+        """Disconnect the ATS client from the ATS server"""
 
         self._connected = False
 
@@ -70,22 +57,21 @@ class BaseATSClient(object):
     @abc.abstractmethod
     def _send_server_command(self, command, extra_data):
         # type: (str, dict) -> str
-        """
-        Send a command to the ATS server
+        """Send a command to the ATS server
 
         This function is responsible for flattening the command
-        and data before transmision to the server
+        and data before transmission to the server
 
         Args:
             command (str): the command to be sent
-            extra_data (dict): any suplemental data
+            extra_data (dict): any supplemental data
 
         Returns:
             (str): a unique ID of the command sent
 
         """
 
-        if self._connected is False:
+        if not self._connected:
             self._connect_server()
 
         return "request_ID"
@@ -93,17 +79,16 @@ class BaseATSClient(object):
     @abc.abstractmethod
     def _get_server_reply(self, request_id):
         # type: (str) -> dict
-        """
-        Get the reply from a server command
+        """Get the reply from a server command
 
-        This function is responsible for un-flattening the reply
-        from the server.
+        This function is responsible for converting the reply
+        from the server to a dict.
 
         Args:
             request_id (object): the unique ID of the request awaiting reply
 
         Returns:
-            (dict): Dictonary of unflattened reply
+            (dict): Dictionary of unflattened reply
 
         """
 
@@ -113,8 +98,7 @@ class BaseATSClient(object):
 
     def server_communicate(self, server_request):
         # type: (dict) -> dict
-        """
-        Send a command to the server and return the server reply
+        """Send a command to the server and return the server reply
 
         Args:
             server_request (dict): the request to be sent with
@@ -122,10 +106,10 @@ class BaseATSClient(object):
                                    will be placed in the extra data
 
         Returns:
-            (dict): Dictonary of unflattened reply
+            (dict): Dictionary of unflattened reply
 
         Raises:
-            ServerCommandMissing
+            ServerCommandMissing:
 
         """
 
@@ -141,8 +125,7 @@ class BaseATSClient(object):
 
     def get_all_resources(self):
         # type: () -> list
-        """
-        Get a list of all resources managed by the ATS
+        """Get a list of all resources managed by the ATS
 
         Returns:
             (list): List of all resources managed by the ATS
@@ -157,8 +140,7 @@ class BaseATSClient(object):
 
     def get_available_resources(self):
         # type: () -> list
-        """
-        Get a list of available resources
+        """Get a list of available resources
 
         Returns:
             (list): List of available resources
@@ -174,8 +156,8 @@ class BaseATSClient(object):
     def get_resource_availablity(self, resource, start_time=None,
                                  end_time=None):
         # type: (str, float, float) -> dict
-        """
-        Get the time when a resource will become available.
+        """Get the time when a resource will become available.
+
         If the resource is not available at the time requested,
         avail_start and avail_end will be the soonest time slot
         available.
@@ -209,8 +191,7 @@ class BaseATSClient(object):
 
     def get_resource_config(self, resource):
         # type: (str) -> object
-        """
-        Get the current configuration of a resource
+        """Get the current configuration of a resource
 
         Args:
             resource (str): name of resource
@@ -234,22 +215,22 @@ class BaseATSClient(object):
                             reservation_duration=3600.0,  # type: Optional[float]
                             next_available=True,          # type: Optional[bool]
                             reservation_mode="exclusive"  # type: Optional[str]
-                           ):
+                            ):
         # type: (...) -> tuple[str, float, float]
-        """
-        Request resource reservation with an optional configuration.
+        """Request resource reservation with an optional configuration.
+
         this will put a preliminary lock on the resource, the final lock must
         be requested after the time_available using claim_reservation
 
         Args:
             resource (str): The name of the resource requested
             res_config (object): An object that can be serialized
-                                 for transmision to the server.
+                                 for transmission to the server.
                                  This optional object will define the requested
                                  configuration.
             time_needed (float): time.time time the resource is needed.
                                  if not provided, default is now
-            reservatoin_duration (float): seconds the resource is requested for
+            reservation_duration (float): seconds the resource is requested for
                                           defaults to 3600 (1 hour)
             next_available (bool): If the requested time_needed is not available,
                                    request the next available time.
@@ -265,14 +246,14 @@ class BaseATSClient(object):
                 * (float): epoch time the pre_reservation_ID will expire.
 
         Raises:
-            ResourceUnavailable
+            ResourceUnavailable:
 
         """
 
         if time_needed is None:
             time_needed = time.time()
 
-        server_request = {"command": "request_reservaton",
+        server_request = {"command": "request_reservation",
                           "resource": "{0}".format(resource),
                           "time_needed": time_needed,
                           "reservation_duration": reservation_duration,
@@ -292,11 +273,13 @@ class BaseATSClient(object):
 
     def claim_reservation(self, pre_reservation_id):
         # type: (str) -> dict
-        """
-        Claim a pre-reserved resource. If the reservation is claimed late
-        and will not be available for the entire reservation_duration
-        an exception will be raised.  If late and another slot is available
-        a new pre-reservation will be provided, see Returns below
+        """Claim a pre-reserved resource.
+
+        * If the reservation is claimed late and will not be available for the
+          entire reservation_duration an exception will be raised.
+
+        * If claimed late and another slot is available
+          a new pre-reservation will be provided, see Returns below
 
         Args:
             pre_reservation_id (str): The pre_reservation_id
@@ -305,7 +288,7 @@ class BaseATSClient(object):
         Returns:
             (dict):
 
-                * Min keys if succes
+                * Min keys if success
                     * reservation_id(str): if the reservation is a success.
                     * expire_time(float): epoch time when the reservation expires
                     * resource_config(object): Current configuration of the resource
@@ -313,14 +296,14 @@ class BaseATSClient(object):
                 * Min keys if failure
                     * pre_reservation_id (str): new pre_reservation ID
                     * new_avail (float): New available time
-                    * new_expire (float): New experation time
+                    * new_expire (float): New expiration time
 
         Raises:
-            ResourceUnavailable
+            ResourceUnavailable:
 
         """
 
-        server_request = {"command": "claim_reservaton",
+        server_request = {"command": "claim_reservation",
                           "pre_reservation_id": pre_reservation_id}
 
         server_reply = self.server_communicate(server_request)
@@ -334,12 +317,14 @@ class BaseATSClient(object):
 
     def release_resource(self, reservation_id):
         # type: (str) -> bool
-        """
-        Release a previously reserved resource
+        """Release a previously reserved resource
 
         Args:
             reservation_id (str): reservation_id or pre-reservation_id
                                   of resource
+
+        Returns:
+            (bool):
 
         """
 

@@ -9,11 +9,12 @@ package_version:
     type: string
     default: null
     nullable: True
-# test group to execute, consumed on use
-test_group:
-    type: string
-    default: null
-    nullable: True
+# test groups to execute, consumed on use
+test_groups:
+    type: list
+    schema:
+        type: string
+    default: []
 # ATS client for communication with the ATS resource manager, consumed on use
 ats_client:
     type: string

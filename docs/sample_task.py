@@ -1,8 +1,4 @@
-"""
-A sample task for Kiss ATS
-
-
-"""
+"""A sample task for Kiss ATS"""
 # TODO(BF): Needs updating
 
 import logging
@@ -13,12 +9,11 @@ logger.addHandler(logging.NullHandler())
 
 
 def get_params(global_params):
-    """"
-    The parameters for executing the task
+    """"The parameters for executing the task
 
     An example implementation:
         If the task requires a 32-bit Linux PC running centOS and the ATS
-        manager has the capibility to configure resources.
+        manager has the capability to configure resources.
         Some of the params might look like:
              params['exclusive_resources'] = ['linux_pc']
              params['resource_config'] = {'linux_pc':['32-bit', 'centOS']}
@@ -26,7 +21,7 @@ def get_params(global_params):
         The object contained in the key "linux_pc" will be flattened and sent
         to the ATS manager via the defined ATS client.  The ATS manager would
         schedule the configuration of a resource with a 32 bit installation of
-        centOS.  The ATS manager would return a pre-reservaton ID and a time
+        centOS.  The ATS manager would return a pre-reservation ID and a time
         when the resource will be ready.  The task_pack will delay the test/task
         until the resource is configured/ready.  Depending on the resource_mode
         selected task_pack will continue with other test/task actions while
@@ -64,8 +59,7 @@ def get_params(global_params):
 
 
 def task_setup(global_params):
-    """
-    Setup action for this task.
+    """Setup action for this task.
 
     required return value is None
 
@@ -83,9 +77,8 @@ def task_setup(global_params):
     return
 
 
-def run(global_params):
-    """
-    The Task itself
+def task_main(global_params):
+    """The main task function
 
     If the valid_ats is a valid kiss ats available on pypi or
     already installed, the global_params will contain an instantiated client
@@ -94,8 +87,8 @@ def run(global_params):
     required return is a dict containing at least
     the "task_result" and "task_metadata" keys
 
-    An optional additional key 'multi_result' is permited.
-    multi_result must be a list of dicts containing the "name",
+    An optional additional key 'multi_result' is permitted.
+    multi_result must be a list of dictionaries containing the "name",
     "description", "task_result" and "task_metadata" keys.
     The items in the list will be reported in the order they
     are contained in the list.
@@ -108,15 +101,14 @@ def run(global_params):
     # Multi result is an optional return dictionary item
     multi_result = list()
 
-    multi_result.append({'name': "sub_task", 'description': "sub_description",
+    multi_result.append({'name': "sub_task", 'description': "sub_description",      
                          'task_result': "sub_task_result", 'task_metadata': "sub_task_message"})
 
     return {'task_result': task_result, 'task_metadata': task_message, 'multi_result': multi_result}
 
 
 def test_teardown(global_params):
-    """
-    Teardown action for this task.
+    """Teardown action for this task.
 
     required return value is None
 

@@ -9,16 +9,17 @@ Contents:
     :maxdepth: 2
 
     readme
+    schemas
     kissats.task_pack
+    kissats.task
+    sample_task
     kissats.ats_client
     kissats.ats_resource
-    kissats.task
-    kissats.exceptions
+    sample_resource
     kissats.common
     kissats.schemas.schemas
-    schemas
-    sample_task
-    sample_resource
+    kissats.exceptions
+    todo
 
 Indices and tables
 ==================

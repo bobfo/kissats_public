@@ -1,14 +1,11 @@
-"""
-Setup for KISS ATS
-
-"""
+"""Setup for KISS ATS"""
 
 from setuptools import (setup,
                         find_packages)
 
 setup(
     name="kissats",
-    version="1.0.0a3",
+    version="1.0.0a4",
     url="https://kissats-public.readthedocs.io/en/latest/index.html",
     author="Bob Folkes",
     author_email="bob@nwcompnet.com",
@@ -33,5 +30,6 @@ setup(
     package_data={"kissats": ["schemas/*.yaml"]},
     install_requires=["pathlib2",
                       "pyyaml",
-                      "cerberus"]
+                      "cerberus",
+                      "six"]
 )
