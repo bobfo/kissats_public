@@ -7,7 +7,7 @@ REM Command file for Sphinx documentation
 cd ..
 pip uninstall kissats -y
 python setup.py sdist bdist_wheel
-pip install .\dist\kissats-1.0.0a3-py2-none-any.whl
+pip install .\dist\kissats-1.0.0a5-py2-none-any.whl
 cd docs
 
 if "%SPHINXBUILD%" == "" (
