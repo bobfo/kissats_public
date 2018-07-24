@@ -9,6 +9,17 @@ result:
     required: True
 metadata:
     type: dict
-    nullable: True
-    default: null
+    schema:
+        run_time:
+            type: float
+            default: 0
+            required: True
+        est_task_time:
+            type: float
+            default: 0
+            required: True
+        run_time_delta:
+            type: float
+            default: 0
+            required: True
     required: True

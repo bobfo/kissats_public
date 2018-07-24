@@ -102,3 +102,8 @@ class InvalidDataFile(KissATSError):
 class UnsupportedRunMode(KissATSError):
     """An unsupported run mode was requested"""
     pass
+
+
+class ObjectNotCallable(KissATSError):
+    """A callable object was expected"""
+    pass

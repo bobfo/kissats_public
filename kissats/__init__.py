@@ -19,7 +19,8 @@ from kissats.exceptions import (KissATSError,
                                 TaskPackageNotRegistered,
                                 InvalidSchemaFile,
                                 UnsupportedRunMode,
-                                InvalidDataFile)
+                                InvalidDataFile,
+                                ObjectNotCallable)
 
 from kissats.ats_client import BaseATSClient
 from kissats.ats_resource import ResourceReservation
@@ -27,4 +28,4 @@ from kissats.task_pack import TaskPack
 from kissats.task import Task
 from kissats.schemas import MASTER_SCHEMAS
 
-__version__ = "1.0.0a4"
+__version__ = "1.0.0a5"

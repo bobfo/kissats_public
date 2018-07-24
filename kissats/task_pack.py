@@ -20,7 +20,8 @@ from kissats.exceptions import (KissATSError,
                                 ResourceRetryExceeded,
                                 ResourceUnavailable,
                                 InvalidResourceMode,
-                                TaskPackageNotRegistered)
+                                TaskPackageNotRegistered,
+                                ObjectNotCallable)
 
 from kissats.schemas import MASTER_SCHEMAS
 from kissats.schemas import normalize_and_validate
@@ -76,7 +77,7 @@ class TaskPack(object):
         self._process_limit = None
         self._resource_mode = None
         self._ignore_prereq = None
-        self._valid_task_result = None
+        self._valid_result = None
         self._dut = None
         self._ats = None
         self._run_mode = None
@@ -104,8 +105,10 @@ class TaskPack(object):
         self._test_que = deque()
         self._setup_que = deque()
         self._teardown_que = deque()
-        self._delay_que = list()
         self._active_que = self._setup_que
+        # special delay que
+        self._delay_que = list()
+
         # do some init stuff
         self.params = init_params
         self.resource_mode = self.params.pop('resource_mode')
@@ -118,8 +121,7 @@ class TaskPack(object):
                 self.add_setup_task(setup_task)
             for teardown_task in self.teardown_list:
                 self.add_teardown_task(teardown_task)
-            self.test_groups = self.params.pop('test_groups')
-            for test_group in self.test_groups:
+            for test_group in self.params.pop('test_groups'):
                 self.add_test_group(test_group)
 
     @property
@@ -147,18 +149,22 @@ class TaskPack(object):
 
             if [c in task_package for c in ["\\", "/", ":"] if c in task_package]:
                 # looks like a file, install it
+                logger.debug("pip installing %s", task_package)
                 pip_in_package(task_package)
                 task_pack_stem = pathlib.Path(task_package).stem
                 dist = task_pack_stem.split("-")[0]
+                logger.debug("importing task package %s", dist)
                 self._task_pack = importlib.import_module(dist)
             else:
                 try:
+                    logger.debug("importing task package %s", task_package)
                     self._task_pack = importlib.import_module(task_package)
                 except ImportError:
                     if package_ver is not None:
                         _pip_str = task_package + package_ver
                     else:
                         _pip_str = task_package
+                    logger.debug("pip installing %s", _pip_str)
                     if pip_in_package(_pip_str):
                         raise KissATSError("package {0} "
                                            "failed to install".format(_pip_str))
@@ -210,6 +216,9 @@ class TaskPack(object):
         # type: () -> list
         """The scheduled test groups"""
 
+        if self._test_groups is None:
+            self._test_groups = list()
+
         return self._test_groups
 
     @test_groups.setter
@@ -249,7 +258,7 @@ class TaskPack(object):
         """Resource reservation mode"""
 
         if self._resource_mode is None:
-            self.resource_mode = self._params.pop('resource_mode')
+            self.resource_mode = self.params.pop('resource_mode')
 
         return self._resource_mode
 
@@ -314,22 +323,22 @@ class TaskPack(object):
         return self._json_params
 
     @property
-    def valid_task_result(self):
+    def valid_result(self):
         """Valid result returns
 
         These are the only result values that will be considered a non-failure
         condition.
 
         """
-        if self._valid_task_result is None:
-            self._valid_task_result = self._params.pop('valid_task_result')
+        if self._valid_result is None:
+            self._valid_result = self.params.pop('valid_result')
 
-        return self._valid_task_result
+        return self._valid_result
 
-    @valid_task_result.setter
-    def valid_task_result(self, result_list):
+    @valid_result.setter
+    def valid_result(self, result_list):
 
-        self._valid_task_result = result_list
+        self._valid_result = result_list
 
     @property
     def setup_list(self):
@@ -408,7 +417,10 @@ class TaskPack(object):
     @report_func.setter
     def report_func(self, func):
 
-        self._report_func = func
+        if callable(func):
+            self._report_func = func
+        else:
+            raise ObjectNotCallable("{0} is not callable".format(func))
 
     @property
     def schedule_func(self):
@@ -487,28 +499,23 @@ class TaskPack(object):
 
         self._ats_client = new_ats_client
 
-    def report_result(self, name, description,
-                      result, metadata):
+    def report_result(self, result):
         """Report results using a registered reporting function.
 
         If no reporting function is registered, result will be
         reported using the python built in logging module.
 
         Args:
-            name(str): The name of the task
-            description(str): A short description of the task
-            result(str): the result of the task, IE: Passed, Failed, etc.
-            metadata(str):  Any test metadata, typically a flattened format
-                            such as JSON or YAML
+            result(dict): see reporting_schema for details
 
         """
 
-        if self._report_func is not None:
-            self._report_func(name, description, result, metadata)
+        if self.report_func is not None:
+            self.report_func(result)
         else:
-            logger.info("task %s self descibes as %s", name, description)
-            logger.info("task %s result: %s", name, result)
-            logger.info("task %s metadata: %s", name, metadata)
+            logger.info("task %s result: %s", result['name'], result['result'])
+            logger.info("task %s self descibes as %s", result['name'], result['description'])
+            logger.info("task %s metadata: %s", result['name'], result['metadata'])
 
     def _record_result(self, task, result):
         """record result inside class, call report method
@@ -520,18 +527,20 @@ class TaskPack(object):
         """
 
         logger.info("reporting result of task %s", task.name)
+        self._completed_tasks[task.name] = result['result']
 
-        self._completed_tasks[task.name] = result['task_result']
-        self.report_result(task.name,
-                           task.params['description'],
-                           result['task_result'],
-                           result['task_metadata'])
         if result.get('multi_result') is not None:
-            for sub_task_result in result['multi_result']:
-                self.report_result(sub_task_result['name'],
-                                   sub_task_result['description'],
-                                   sub_task_result['task_result'],
-                                   sub_task_result['task_metadata'])
+            for sub_result in result.pop('multi_result'):
+                sub_result = normalize_and_validate(sub_result, MASTER_SCHEMAS.reporting_schema)
+                self.report_result(sub_result['name'],
+                                   sub_result['description'],
+                                   sub_result['result'],
+                                   sub_result['metadata'])
+
+        result['name'] = task.name
+        result['description'] = task.params['description']
+        result = normalize_and_validate(result, MASTER_SCHEMAS.reporting_schema)
+        self.report_result(result)
 
     def clear_test_que(self):
         """clear the test queue"""
@@ -696,7 +705,7 @@ class TaskPack(object):
                     try:
                         self._active_que.remove(in_prereq)
                         self._est_run_time -= in_prereq.time_estimate
-                        logger.info("%s removed from que", in_prereq.name)
+                        logger.debug("%s removed from que", in_prereq.name)
                     except ValueError:
                         pass
 
@@ -735,6 +744,7 @@ class TaskPack(object):
                         raise TaskPackageNotRegistered()
                     pack_task = "{0}.{1}".format(self.task_pack.__name__,
                                                  task)
+                    logger.debug("attempting to import %s", pack_task)
                     imported_task = Task(pack_task, self.params, self.ats_client)
                 except ImportError:
                     self._release_all_resources()
@@ -767,8 +777,8 @@ class TaskPack(object):
         if self.task_pack is None:
             raise TaskPackageNotRegistered()
 
-        self._test_groups.append(test_group)
-
+        self.test_groups.append(test_group)
+        logger.info("adding test group %s", test_group)
         for test_task in self.get_seq_group(test_group, "test"):
             self.add_test_task(test_task)
         for setup_task in self.get_seq_group(test_group, "setup"):
@@ -789,17 +799,26 @@ class TaskPack(object):
         """
 
         if self.task_pack is None:
-            raise TaskPackageNotRegistered()
+            raise TaskPackageNotRegistered
         try:
-            seq = importlib.import_module("{0}.{1}".format(self.task_pack.__name__,
-                                                           seq_name)) # flake8: noqa F841
+            import_name = "{0}.seq_{1}".format(self.task_pack.__name__,
+                                               seq_name)
+            logger.debug("importing %s", import_name)
+
+            seq = importlib.import_module(import_name)
+
         except ImportError:
             return list()
         if seq_name == "test":
             seq_name += "s"
         group = "get_{0}_{1}".format(group_name, seq_name)
-        if callable(getattr(seq, group)):
-            return getattr(seq, group)()
+        try:
+            if callable(getattr(seq, group)):
+                return getattr(seq, group)(self.params)
+            else:
+                logger.warning("%s in %s is not callable", group, seq)
+        except AttributeError:
+            logger.debug("%s does not have a function or method named %s", seq, group)
 
         return list()
 
@@ -831,7 +850,7 @@ class TaskPack(object):
                         (("{0}.{1}".format(self.task_pack.__name__,
                                            prereq)) == c_test)):
                     prereq_run = True
-                    if result in self.valid_task_result:
+                    if result in self.valid_result:
                         prereq_pass = True
             if prereq_run:
                 if not prereq_pass:
@@ -1013,8 +1032,8 @@ class TaskPack(object):
 
                         logger.warning(warn_msg)
 
-                        result['task_result'] = "Skipped"
-                        result['task_metadata'] = {'message': warn_msg}
+                        result['result'] = "Skipped"
+                        result['metadata'] = {'message': warn_msg}
                         self._record_result(task_to_delay.name, result)
 
                     continue
@@ -1040,8 +1059,8 @@ class TaskPack(object):
                                                                 failed_prereqs)
                     logger.warning(warn_msg)
 
-                    result['task_result'] = "Skipped"
-                    result['task_metadata'] = {'message': warn_msg}
+                    result['result'] = "Skipped"
+                    result['metadata'] = {'message': warn_msg}
                     self._record_result(task_to_run, result)
                     continue
 
@@ -1059,11 +1078,13 @@ class TaskPack(object):
                 # release per task resources here
                 pass
 
-            if result['task_metadata'].__class__ is dict:
-                result['task_metadata']['run_time'] = run_time
+            if result['metadata'].__class__ is dict:
+                result['metadata']['run_time'] = run_time
+                result['metadata']['est_task_time'] = task_to_run.time_estimate
+                result['metadata']['run_time_delta'] = task_to_run.time_estimate - run_time
 
             self._record_result(task_to_run, result)
-            if result['task_result'] not in self.valid_task_result:
+            if result['result'] not in self.valid_result:
                 if (task_to_run.params['stop_suite_on_fail'] or
                         ("setup" in task_to_run.name)):
 

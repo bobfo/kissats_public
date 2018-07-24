@@ -85,26 +85,26 @@ def task_main(global_params):
     with all needed resources claimed.
 
     required return is a dict containing at least
-    the "task_result" and "task_metadata" keys
+    the "result" and "metadata" keys
 
     An optional additional key 'multi_result' is permitted.
     multi_result must be a list of dictionaries containing the "name",
-    "description", "task_result" and "task_metadata" keys.
+    "description", "result" and "metadata" keys.
     The items in the list will be reported in the order they
     are contained in the list.
 
     """
 
-    task_result = "Passed"
+    result = "Passed"
     task_message = ""
 
     # Multi result is an optional return dictionary item
     multi_result = list()
 
-    multi_result.append({'name': "sub_task", 'description': "sub_description",      
-                         'task_result': "sub_task_result", 'task_metadata': "sub_task_message"})
+    multi_result.append({'name': "sub_task", 'description': "sub_description",
+                         'result': "sub_result", 'metadata': "sub_task_message"})
 
-    return {'task_result': task_result, 'task_metadata': task_message, 'multi_result': multi_result}
+    return {'result': result, 'metadata': task_message, 'multi_result': multi_result}
 
 
 def test_teardown(global_params):

@@ -21,7 +21,7 @@ ats_client:
     default: null
     nullable: True
 # any string not listed here will be considered a failure
-valid_task_result:
+valid_result:
     type: list
     schema:
         type: string

@@ -5,7 +5,7 @@ from setuptools import (setup,
 
 setup(
     name="kissats",
-    version="1.0.0a4",
+    version="1.0.0a5",
     url="https://kissats-public.readthedocs.io/en/latest/index.html",
     author="Bob Folkes",
     author_email="bob@nwcompnet.com",

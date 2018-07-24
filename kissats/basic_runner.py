@@ -18,6 +18,8 @@ from kissats.task_pack import TaskPack
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+ALL_RESULTS = list()
+
 
 def logger_setup(log_loc=None, log_prefix=__name__):
     """setup some basic logging"""
@@ -79,7 +81,7 @@ def build_parser():
                            help=('test group to run'),
                            default=None)
     parser.add_argument('--singletest',
-                        dest='single_mode',
+                        dest='singletest',
                         action='store_true',
                         help=('enable single test mode, ignore prereqs, '
                               'skip gloabal setup and teardown'),
@@ -115,16 +117,27 @@ def build_parser():
     return parser
 
 
+def reporter(result):
+    """a reporting function"""
+
+    logger.info("task %s result: %s", result['name'], result['result'])
+    logger.info("task %s self descibes as %s", result['name'], result['description'])
+    logger.info("task %s metadata: %s", result['name'], result['metadata'])
+
+    ALL_RESULTS.append(result)
+
+
 def main(input_args):
     """the main function"""
 
     global_params = load_data_file(input_args.param_input)
 
-    # TODO(BF): need to handle this differantly
+    # TODO(BF): need to handle this differently
     # if global_params.get('test_groups'):
     #    input_test_groups = global_params.pop('test_groups')
 
     big_pack = TaskPack(global_params, input_args.schema_add)
+    big_pack.report_func = reporter
 
     if args.test_group is not None:
         big_pack.add_test_group(args.test_group)
@@ -155,6 +168,29 @@ def main(input_args):
         if not skip_teardown:
             print ("running teardown")
             big_pack.run_teardown_que()
+    total_test_time = 0
+    total_est_time = 0
+    total_time_delta = 0
+    avg_delta = 0
+    print ("\n___________results___________\n")
+    for result in ALL_RESULTS:
+        print ("\n-------------{0}-------------\n".format(result['name']))
+        print ("{0}".format(result['result']))
+        print("\nMetadata:")
+        for k, v in result['metadata'].iteritems():
+            print ("{0}: {1}".format(k, v))
+
+        total_test_time += result['metadata']['run_time']
+        total_est_time += result['metadata']['est_task_time']
+        total_time_delta += result['metadata']['run_time_delta']
+        avg_delta += result['metadata']['run_time_delta']
+        avg_delta = avg_delta/2
+
+    print ("\n___________summery___________\n")
+    print ("total test time: {0}".format(total_test_time))
+    print ("estamated test time: {0}".format(total_est_time))
+    print ("total time delta: {0}".format(total_time_delta))
+    print ("avg test time delta: {0}".format(avg_delta))
 
     print("run complete")
 

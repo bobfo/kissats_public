@@ -315,11 +315,11 @@ class Task(BaseTask):
         self._process_safe = False
         self._params = None
 
-        if task_in is not None:
-            self.task_mod = task_in
-
         if global_params_in is not None:
             self.global_params = global_params_in
+
+        if task_in is not None:
+            self.task_mod = task_in
 
     @property
     def name(self):
@@ -330,6 +330,9 @@ class Task(BaseTask):
         and reported by the TaskPack
 
         """
+        if self._name is None:
+            self._name = self.params['name']
+
         return self._name
 
     @name.setter
@@ -720,8 +723,8 @@ class Task(BaseTask):
             raise
         except Exception, err:
             logger.exception(err)
-            results['task_result'] = "Exception"
-            results['task_metadata'] = {"exception_details": err}
+            results['result'] = "Exception"
+            results['metadata'] = {"exception_details": err}
         return results
 
     def _run_thread(self, func):
@@ -798,7 +801,7 @@ class Task(BaseTask):
 
         """
 
-        task_return = dict()
+        results = dict()
         logger.info("checking requirements for task %s", self.name)
         self.check_requires()
 
@@ -806,8 +809,9 @@ class Task(BaseTask):
         run_teardown = True
 
         try:
-
+            logger.info("executing task %s task_setup", self.name)
             self.task_setup()
+            logger.info("executing task %s task_main", self.name)
             results = self.task_main()
             logger.info("task results: %s", results)
 
@@ -821,8 +825,7 @@ class Task(BaseTask):
 
         finally:
             if run_teardown:
+                logger.info("executing task %s task_teardown", self.name)
                 self.task_teardown()
 
-        logger.info("task return: %s", task_return)
-
-        return task_return
+        return results
