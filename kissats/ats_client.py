@@ -67,7 +67,7 @@ class BaseATSClient(object):
             extra_data (dict): any supplemental data
 
         Returns:
-            (str): a unique ID of the command sent
+            str: a unique ID of the command sent
 
         """
 
@@ -88,7 +88,7 @@ class BaseATSClient(object):
             request_id (object): the unique ID of the request awaiting reply
 
         Returns:
-            (dict): Dictionary of unflattened reply
+            dict: Dictionary of unflattened reply
 
         """
 
@@ -106,7 +106,7 @@ class BaseATSClient(object):
                                    will be placed in the extra data
 
         Returns:
-            (dict): Dictionary of unflattened reply
+            dict: Dictionary of unflattened reply
 
         Raises:
             ServerCommandMissing:
@@ -128,7 +128,7 @@ class BaseATSClient(object):
         """Get a list of all resources managed by the ATS
 
         Returns:
-            (list): List of all resources managed by the ATS
+            list: List of all resources managed by the ATS
 
         """
 
@@ -143,7 +143,7 @@ class BaseATSClient(object):
         """Get a list of available resources
 
         Returns:
-            (list): List of available resources
+            list: List of available resources
 
         """
 
@@ -168,7 +168,7 @@ class BaseATSClient(object):
             end_time (float): Epoch time in seconds
 
         Returns:
-            (dict): min keys:
+            dict: min keys:
                         * available (bool) True if available at the time requested
                         * avail_start (float)
                         * avail_end (float)
@@ -197,7 +197,7 @@ class BaseATSClient(object):
             resource (str): name of resource
 
         Returns:
-            (object): the current configuration of the resource
+            object: the current configuration of the resource
 
         """
 
@@ -237,7 +237,7 @@ class BaseATSClient(object):
             reservation_mode (str): "exclusive" or "shared", default "exclusive"
 
         Returns:
-            (tuple):
+            tuple:
 
                 * (str): UUID of pre-reservation.
                 * (float): epoch time resource will be available
@@ -286,7 +286,7 @@ class BaseATSClient(object):
                                       returned by get_future_reservation
 
         Returns:
-            (dict):
+            dict:
 
                 * Min keys if success
                     * reservation_id(str): if the reservation is a success.
@@ -324,7 +324,7 @@ class BaseATSClient(object):
                                   of resource
 
         Returns:
-            (bool):
+            bool: True if released
 
         """
 

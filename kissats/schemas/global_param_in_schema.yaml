@@ -32,7 +32,7 @@ thread_limit:
     type: integer
     default: 5
     required: True
-# Max number of processes touse in sub_process mode, consumed on use
+# Max number of processes to use in sub_process mode, consumed on use
 process_limit:
     type: integer
     default: 5
@@ -60,3 +60,9 @@ ignore_prereq:
     type: boolean
     required: True
     default: False
+# kwargs to be passed to an auto ATS client
+ats_client_kwargs:
+    type: dict
+    required: True
+    default: null
+    nullable: True

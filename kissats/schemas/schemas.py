@@ -22,7 +22,7 @@ def load_schema(schema_location):
                                                   to load.
 
     Returns:
-        (dict)
+        dict: The schema in dict format
 
     """
 
@@ -40,8 +40,7 @@ def normalize_and_validate(dict_to_check, schema):
         schema(dict): schema to use
 
     Returns:
-        (tuple):
-            (dict): Normalized and valid dictionary
+        dict: Normalized and valid dictionary
 
     Raises:
         SchemaMisMatch:

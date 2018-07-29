@@ -28,4 +28,4 @@ from kissats.task_pack import TaskPack
 from kissats.task import Task
 from kissats.schemas import MASTER_SCHEMAS
 
-__version__ = "1.0.0a5"
+__version__ = "1.0.0a6"

@@ -1,15 +1,14 @@
 """Task Package manager"""
 
 
-from collections import deque
 import importlib
 import json
 import logging
-import sys
 import time
 from types import ModuleType
 
 import pathlib2 as pathlib
+
 
 from kissats.common import pip_in_package
 from kissats.task import Task
@@ -21,18 +20,20 @@ from kissats.exceptions import (KissATSError,
                                 ResourceUnavailable,
                                 InvalidResourceMode,
                                 TaskPackageNotRegistered,
-                                ObjectNotCallable)
+                                ObjectNotCallable,
+                                SchemaMisMatch)
 
 from kissats.schemas import MASTER_SCHEMAS
 from kissats.schemas import normalize_and_validate
+from kissats.queues import PackQues
 
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-class TaskPack(object):
-    """Schedules and executes a group or package of kissats.BaseTask
+class PackParams(object):
+    """Holds the parameters of the task package
 
     see :ref:`global_parameters_schema`
 
@@ -51,10 +52,10 @@ class TaskPack(object):
 
     def __init__(self, init_params=None, schema_add=None):
 
-        super(TaskPack, self).__init__()
+        super(PackParams, self).__init__()
 
         # switch case for resource modes
-        # Tuple: use_scheduler, combine_resource, claim_per_task
+        # Tuple: use_scheduler, combine_resources, claim_per_task
         self._resource_modes_switch = {
             "all": (False, True, False),
             "per_task_separate": (False, False, True),
@@ -101,14 +102,6 @@ class TaskPack(object):
         self._setup_list = None
         self._teardown_list = None
 
-        # build the queues
-        self._test_que = deque()
-        self._setup_que = deque()
-        self._teardown_que = deque()
-        self._active_que = self._setup_que
-        # special delay que
-        self._delay_que = list()
-
         # do some init stuff
         self.params = init_params
         self.resource_mode = self.params.pop('resource_mode')
@@ -116,17 +109,9 @@ class TaskPack(object):
         self.process_limit = self.params.pop('process_limit')
         self.ats_client = self.params.pop('ats_client')
 
-        if self.params['test_groups']:
-            for setup_task in self.setup_list:
-                self.add_setup_task(setup_task)
-            for teardown_task in self.teardown_list:
-                self.add_teardown_task(teardown_task)
-            for test_group in self.params.pop('test_groups'):
-                self.add_test_group(test_group)
-
     @property
     def task_pack(self):
-        """The package containing the tasks to run
+        """The Python package containing the tasks to run
 
         Also accepts a wheel, distribution name must match
         the import name!
@@ -272,7 +257,6 @@ class TaskPack(object):
              self._claim_per_task) = self._resource_modes_switch[new_mode]
 
         except KeyError:
-            self._release_all_resources()
             raise InvalidResourceMode(new_mode)
 
     @property
@@ -477,7 +461,6 @@ class TaskPack(object):
 
                     pip_str = "ats_{}".format(self.params['ats'])
                     if pip_in_package(pip_str):
-                        self._release_all_resources()
                         raise KissATSError("ATS Client package {0} "
                                            "failed to install".format(pip_str))
                     ats_module = importlib.import_module(ats_client_mod_name)
@@ -487,7 +470,7 @@ class TaskPack(object):
                 #          a valid ATS client class
                 ats_module = importlib.import_module(self._ats_client)
 
-            self._ats_client = ats_module.ATS_Client(**self.params['ats_client_args'])
+            self._ats_client = ats_module.ATS_Client(**self.params['ats_client_kwargs'])
 
         return self._ats_client
 
@@ -498,6 +481,47 @@ class TaskPack(object):
         #          a valid ATS client class
 
         self._ats_client = new_ats_client
+
+
+class TaskPack(PackParams):
+    """Schedules and executes a group or package of kissats.BaseTask
+
+    see :ref:`global_parameters_schema`
+
+    Args:
+        init_params (dict): Initialization parameter dict. see XXXXX
+        schema_add (dict): (Optional) Additional
+                           `Cerberus <http://docs.python-cerberus.org/en/stable/>`_
+                           schema definition to be applied to the init_params
+        que_class (object): Class or object containing the queues, see
+                            :class:`~BaseQues`
+
+    Note:
+        If task_package is not supplied in the init_params, tasks must be added
+        using the appropriate add task method. Any method that depends on a valid
+        task_package will raise.
+
+    """
+
+    def __init__(self, init_params=None, schema_add=None, que_class=PackQues):
+
+        # build the queues
+        self._ques = que_class()
+
+        # do some init stuff
+        super(TaskPack, self).__init__(init_params, schema_add)
+
+        if self.params['test_groups']:
+            for setup_task in self.setup_list:
+                self.add_setup_task(setup_task)
+            for teardown_task in self.teardown_list:
+                self.add_teardown_task(teardown_task)
+            for test_group in self.params.pop('test_groups'):
+                self.add_test_group(test_group)
+
+    def __del__(self):
+        logger.info("Class destruction, releasing all resources")
+        self._release_all_resources()
 
     def report_result(self, result):
         """Report results using a registered reporting function.
@@ -532,10 +556,7 @@ class TaskPack(object):
         if result.get('multi_result') is not None:
             for sub_result in result.pop('multi_result'):
                 sub_result = normalize_and_validate(sub_result, MASTER_SCHEMAS.reporting_schema)
-                self.report_result(sub_result['name'],
-                                   sub_result['description'],
-                                   sub_result['result'],
-                                   sub_result['metadata'])
+                self.report_result(sub_result)
 
         result['name'] = task.name
         result['description'] = task.params['description']
@@ -545,30 +566,31 @@ class TaskPack(object):
     def clear_test_que(self):
         """clear the test queue"""
 
-        self._test_que.clear()
+        self._ques.set_active_que("test")
+        self._ques.clear_active_que()
 
     def clear_setup_que(self):
         """clear the setup queue"""
 
-        self._setup_que.clear()
+        self._ques.set_active_que("setup")
+        self._ques.clear_active_que()
 
     def clear_teardown_que(self):
         """clear the teardown queue"""
 
-        self._teardown_que.clear()
+        self._ques.set_active_que("teardown")
+        self._ques.clear_active_que()
 
     def clear_delay_que(self):
         """clear the delay queue"""
 
-        self._delay_que = list()
+        self._ques.set_active_que("delay")
+        self._ques.clear_active_que()
 
     def clear_all_que(self):
         """clear all task queues"""
 
-        self.clear_setup_que()
-        self.clear_test_que()
-        self.clear_delay_que()
-        self.clear_teardown_que()
+        self._ques.clear_all_que()
 
     def add_test_task(self, task, allow_dupe=False, top=False):
         """add a task to the test queue
@@ -608,10 +630,13 @@ class TaskPack(object):
               task params key valid_ats the task will not be added
               and processing will continue
 
+        Returns:
+            bool: True if in the queue
+
         """
 
-        self._active_que = self._test_que
-        self._add_task_to_que(task, allow_dupe, top)
+        self._ques.set_active_que("test")
+        return self._add_task_to_que(task, allow_dupe, top)
 
     def add_setup_task(self, task, allow_dupe=False, top=False):
         """add a task to the setup queue
@@ -624,10 +649,13 @@ class TaskPack(object):
         see :func:`~add_test_task` for Task input handling
         and further allow_dupe explanation
 
+        Returns:
+            bool: True if in the queue
+
         """
 
-        self._active_que = self._setup_que
-        self._add_task_to_que(task, allow_dupe, top)
+        self._ques.set_active_que("setup")
+        return self._add_task_to_que(task, allow_dupe, top)
 
     def add_teardown_task(self, task, allow_dupe=False, top=False):
         """add a task to the teardown queue
@@ -640,23 +668,21 @@ class TaskPack(object):
         see :func:`~add_test_task` for Task input handling
         and further allow_dupe explanation
 
+        Returns:
+            bool: True if in the queue
+
+        Raises:
+            FailedPrereq:
+            KissATSError:
+
         """
-        self._active_que = self._teardown_que
-        self._add_task_to_que(task, allow_dupe, top)
+        self._ques.set_active_que("teardown")
+        return self._add_task_to_que(task, allow_dupe, top)
 
     def _add_task_to_que(self, task, allow_dupe=False, top=False):
         """add a task to the active queue"""
 
-        if task.__class__ is Task:
-            task_to_add = task
-        else:
-            task_to_add = self._instantiate_task(task)
-
-        if (task_to_add in self._active_que) and not allow_dupe:
-            logger.warning("unable to add %s due to "
-                           "task already in que", task_to_add.name)
-            # it's already in the queue, return a True
-            return True
+        task_to_add = self._load_and_validate_task(task)
 
         if self.dut is not None and not task_to_add.check_dut_valid():
             logger.warning("unable to add %s due to "
@@ -668,13 +694,12 @@ class TaskPack(object):
                            "invlaid ATS selected", task_to_add.name)
             return False
 
-        if top:
-            self._active_que.appendleft(task_to_add)
-            logger.info("%s added to top of que", task_to_add.name)
+        if allow_dupe or not self._ques.in_active_que(task_to_add):
+            self._ques.add_to_active_que(task_to_add, top)
+            self._est_run_time += task_to_add.time_estimate
         else:
-            self._active_que.append(task_to_add)
-            logger.info("%s added to bottom of que", task_to_add.name)
-        self._est_run_time += task_to_add.time_estimate
+            # already in queue and dupe not allowed
+            return True
 
         if self._combine_resources:
             for idx, resource in enumerate(task_to_add.resource_list):
@@ -695,49 +720,51 @@ class TaskPack(object):
                                                                failed_prereqs)
                 logger.warning(err_msg)
                 if task_to_add.params['stop_suite_on_fail']:
-                    self._release_all_resources()
                     raise FailedPrereq(err_msg)
                 return False
 
             if prereqs_needed:
                 for prereq in prereqs_needed:
-                    in_prereq = self._instantiate_task(prereq)
+                    in_prereq = self._load_and_validate_task(prereq)
                     try:
-                        self._active_que.remove(in_prereq)
+                        self._ques.remove_from_active_que(in_prereq)
                         self._est_run_time -= in_prereq.time_estimate
-                        logger.debug("%s removed from que", in_prereq.name)
                     except ValueError:
                         pass
 
                     if not self._add_task_to_que(prereq, top=True):
-                        self._release_all_resources()
                         raise KissATSError("Critical error adding "
                                            "prereq task to que")
         return True
 
-    def _instantiate_task(self, task):
-        """Instantiate the Task class
+    def _load_and_validate_task(self, task):
+        """optionally load and then validate the task
 
         Args:
-            task (str or module): If task is a str, attempt to import, if the
-                                  first try fails, we will prepend with
-                                  the package name and try again.
-                                  If task is a loaded module, it will be
-                                  passed directly to the Task class
+            task (str, module or object):
+                * If task is a str, attempt to import, if the
+                  first try fails, we will prepend with
+                  the package name and try again.
 
+                * If task is a loaded module, it will be
+                  passed directly to the Task class.
+
+                * If task is an object, it will be checked for
+                  the callable attributes get_params and
+                  task_main
         Raises:
             TaskPackageNotRegistered:
             InvalidTask:
 
         Returns:
-            (Object)
+            Object: The validated task
 
         """
 
         if task.__class__ is str:
 
             try:
-                imported_task = Task(task, self.params, self.ats_client)
+                new_task = Task(task, self.params, self.ats_client)
             except ImportError:
                 try:
                     if self.task_pack is None:
@@ -745,15 +772,30 @@ class TaskPack(object):
                     pack_task = "{0}.{1}".format(self.task_pack.__name__,
                                                  task)
                     logger.debug("attempting to import %s", pack_task)
-                    imported_task = Task(pack_task, self.params, self.ats_client)
+                    new_task = Task(pack_task, self.params, self.ats_client)
                 except ImportError:
-                    self._release_all_resources()
                     raise InvalidTask("{0} is an invalid task "
                                       "or failed to import".format(task))
         elif task.__class__ is ModuleType:
-            imported_task = Task(task, self.params, self.ats_client)
+            new_task = Task(task, self.params, self.ats_client)
 
-        return imported_task
+        else:
+            new_task = task
+
+        # check that task has the min required methods/functions
+        try:
+            if not callable(new_task.get_params):
+                raise InvalidTask("get_params is not callable, unable to add task")
+        except AttributeError:
+            raise InvalidTask("Task does not have a get_params attribute")
+
+        try:
+            if not callable(new_task.task_main):
+                raise InvalidTask("task_main is not callable, unable to add task")
+        except AttributeError:
+            raise InvalidTask("Task does not have a task_main attribute")
+
+        return new_task
 
     def add_test_group(self, test_group):
         """Add all tests in the test group to the test queue
@@ -777,7 +819,6 @@ class TaskPack(object):
         if self.task_pack is None:
             raise TaskPackageNotRegistered()
 
-        self.test_groups.append(test_group)
         logger.info("adding test group %s", test_group)
         for test_task in self.get_seq_group(test_group, "test"):
             self.add_test_task(test_task)
@@ -785,6 +826,8 @@ class TaskPack(object):
             self.add_setup_task(setup_task)
         for teardown_task in self.get_seq_group(test_group, "teardown"):
             self.add_teardown_task(teardown_task)
+
+        self.test_groups.append(test_group)
 
     def get_seq_group(self, group_name, seq_name):
         """Get a list of tasks from a seq
@@ -794,7 +837,7 @@ class TaskPack(object):
             seq_name (str): seq to check (setup, test or teardown)
 
         Returns:
-            (list):
+            list: List of tasks
 
         """
 
@@ -829,9 +872,10 @@ class TaskPack(object):
             task (Task): the task to check
 
         Returns:
-            (tuple):
-                (list): prereqs needed
-                (list): failed prereqs
+            tuple:
+
+                * (list): prereqs needed
+                * (list): failed prereqs
 
         """
 
@@ -867,7 +911,10 @@ class TaskPack(object):
         "all" or "custom_all", all resources will be reserved and
         claimed. When complete, all resources will be released.
 
-        WIll run all queue's in order:
+        If resource mode is set to a custom mode, the registered
+        schedular function will be called before execution.
+
+        Will run all queue's in order:
             * setup
             * test
             * teardown
@@ -879,12 +926,10 @@ class TaskPack(object):
         """
 
         use_resources = False
-        if self.ats_client and (self.resource_mode not in ['all', 'all_custom']):
-            raise KissATSError("invalid Resoure Run Mode for run method")
-        else:
+        if self.ats_client and (self.resource_mode in ['all', 'all_custom']):
             use_resources = True
             self._reserve_all_resources()
-            last_available_time = time.time()
+            last_available_time = 0.0
             for resource in self._all_resources:
                 last_available_time = max(resource.start_time, last_available_time)
 
@@ -896,14 +941,19 @@ class TaskPack(object):
                 try:
                     if not resource.claim_reservation():
                         raise ResourceUnavailable("Unable to claim resource "
-                                                  "{0}".format(resource.resource_name))
+                                                  "{0}".format(resource.name))
                 except (ResourceRetryExceeded, ResourceUnavailable):
-                    self._release_all_resources()
                     raise ResourceUnavailable("Unable to claim resource "
-                                              "{0}".format(resource.resource_name))
+                                              "{0}".format(resource.name))
+        if self.ats_client and (self.resource_mode in ['per_task_combine', 'custom_combine']):
+            raise NotImplementedError
+        if self.ats_client and (self.resource_mode in ['per_task_separate', 'custom_separate']):
+            raise NotImplementedError
+
+        if self._use_scheduler:
+            self.call_scheduler()
+
         self.run_setup_que()
-        if self.schedule_func is not None:
-            self.schedule_func(self._test_que)
         self.run_test_que()
         self.run_teardown_que()
 
@@ -914,7 +964,7 @@ class TaskPack(object):
     def run_setup_que(self):
         """run all tasks in setup queue"""
 
-        self._active_que = self._setup_que
+        self._ques.set_active_que("setup")
         if not self._claim_per_task:
             pass
 
@@ -923,13 +973,13 @@ class TaskPack(object):
     def run_test_que(self):
         """run all tasks in test queue"""
 
-        self._active_que = self._test_que
+        self._ques.set_active_que("test")
         self._exec_active_que()
 
     def run_teardown_que(self):
         """run all tasks in the teardown queue"""
 
-        self._active_que = self._teardown_que
+        self._ques.set_active_que("teardown")
         self._exec_active_que()
         if not self._claim_per_task:
             pass
@@ -958,10 +1008,9 @@ class TaskPack(object):
             for resource in self.all_resources:
                 if not resource.request_reservation(start_time, end_time, False):
                     all_reserved = False
-                    unavailable_resource = resource.resource_name
+                    unavailable_resource = resource.name
                     break
             if not all_reserved:
-                self._release_all_resources()
                 raise ResourceUnavailable("unable to reserve "
                                           "resource: {0}".format(unavailable_resource))
 
@@ -971,60 +1020,33 @@ class TaskPack(object):
         for resource in self.all_resources:
             resource.release_reservation()
 
-    def _delay_que_add_task(self, task):
-        """place task(s) and reservation(s) in delay queue ordered on reservation time
-
-        Args:
-            task(kissats.task.Task): Task to add
-
-        """
-
-        last_available_time = 0.0
-        first_expire_time = float(sys.maxsize)
-
-        for reservation in task.resource_pre_res_list:
-            last_available_time = max(reservation.start_time, last_available_time)
-            first_expire_time = min(reservation.pre_res_expire, first_expire_time)
-
-        que_entry = {'task': task,
-                     'all_resource_ready': last_available_time,
-                     'expire_time': first_expire_time}
-
-        self._delay_que.append(que_entry)
-        self._delay_que.sort(key=lambda k: k['all_resource_ready'], reverse=True)
-
-    def _call_scheduler(self):
+    def call_scheduler(self):
         """Call the registered scheduler/optimizer
 
-        Passes the active queue to a previously registered function
+        Passes all queues to a previously registered function
 
         """
 
         if self.schedule_func is not None:
-            self.schedule_func(self._active_que)
+            self.schedule_func(self._ques)
 
     def _exec_active_que(self):
         """Execute all tasks in the active queue"""
 
-        if self._use_scheduler:
-            self._call_scheduler()
-
         while True:
             result = dict()
 
-            if self._delay_que:
-                if self._delay_que[0]['expire_time'] >= time.time():
+            if self._ques.delay_que_len:
+                if self._ques.peek_delay()['expire_time'] >= time.time():
                     try:
-                        task_to_delay = self._delay_que.pop(0)
+                        task_to_delay = self._ques.delay_que.pop()
                         logger.warning("Delaying task %s due to resource reservation(s) expire",
                                        task_to_delay.name)
 
                         if task_to_delay.add_resource_delay():
-                            self._delay_que_add_task(task_to_delay)
+                            self._ques.delay_que_add_task(task_to_delay)
                         else:
-                            self._release_all_resources()
                             raise ResourceUnavailable
-
                     except (ResourceRetryExceeded, ResourceUnavailable):
                         warn_msg = ("Skipping test {0}, "
                                     "unable to reserve resources").format(
@@ -1035,23 +1057,23 @@ class TaskPack(object):
                         result['result'] = "Skipped"
                         result['metadata'] = {'message': warn_msg}
                         self._record_result(task_to_delay.name, result)
-
                     continue
 
-                if self._delay_que[0]['all_resource_ready'] >= time.time():
-
-                    task_to_run = self._delay_que.pop()
+                if self._ques.peek_delay()['all_resource_ready'] >= time.time():
+                    task_to_run = self._ques.pop_delay()
 
             else:
                 try:
-                    task_to_run = self._active_que.popleft()
+                    task_to_run = self._ques.popleft_active()
                 except IndexError:
-                    break
+                    if self._ques.delay_que_len:
+                        time.sleep(self._ques.peek_delay()['all_resource_ready'] - time.time())
+                    else:
+                        break
             if not self.ignore_prereq:
                 prereqs_needed, failed_prereqs = self.check_prereqs(task_to_run)
                 if prereqs_needed:
                     # if we are here, something went wrong when the task was added to the queue
-                    self._release_all_resources()
                     raise KissATSError("Fatal prereq error")
                 if failed_prereqs:
                     warn_msg = ("Skipping test {0}, "
@@ -1070,18 +1092,21 @@ class TaskPack(object):
             # if resource won't be available till later place in resource_delay_que
 
             # if resource isn't available, place at bottom of queue
-            try:
-                start_time = time.time()
-                result = task_to_run.run_task()
-                run_time = time.time() - start_time
-            finally:
-                # release per task resources here
-                pass
 
-            if result['metadata'].__class__ is dict:
-                result['metadata']['run_time'] = run_time
-                result['metadata']['est_task_time'] = task_to_run.time_estimate
-                result['metadata']['run_time_delta'] = task_to_run.time_estimate - run_time
+            start_time = time.time()
+            result = task_to_run.run_task()
+            run_time = time.time() - start_time
+            try:
+                result = normalize_and_validate(result, MASTER_SCHEMAS.task_return_schema)
+            except SchemaMisMatch as err:
+                new_msg = "task {0} invalid return: {1}".format(task_to_run.name, err.message)
+                raise SchemaMisMatch(new_msg)
+
+            # release per task resources here
+
+            result['metadata']['run_time'] = run_time
+            result['metadata']['est_task_time'] = task_to_run.time_estimate
+            result['metadata']['run_time_delta'] = task_to_run.time_estimate - run_time
 
             self._record_result(task_to_run, result)
             if result['result'] not in self.valid_result:
@@ -1091,9 +1116,8 @@ class TaskPack(object):
                     err_msg = ("Critical task {0} failed, "
                                "testing terminated").format(task_to_run.name)
                     logger.error(err_msg)
-                    self._release_all_resources()
                     raise CriticalTaskFail(err_msg)
-            if self._delay_que:
+            if self._ques.delay_que_len:
                 # if in resource available window, if window has passed, clear pre-reservation ID,
                 # place back in active_que
                 pass

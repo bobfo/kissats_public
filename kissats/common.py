@@ -37,7 +37,7 @@ def load_data_file(file_location):
                                                 to load.
 
     Returns:
-        (dict)
+        dict: data file contents
 
     """
 

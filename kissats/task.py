@@ -12,8 +12,7 @@ from kissats.exceptions import (KissATSError,
                                 InvalidDut,
                                 InvalidATS,
                                 ResourceNotReady,
-                                InvalidTask,
-                                UnsupportedRunMode)
+                                InvalidTask)
 
 from kissats.ats_resource import ResourceReservation
 from kissats.schemas import MASTER_SCHEMAS
@@ -110,18 +109,6 @@ class BaseTask(object):
 
     @property
     @abc.abstractmethod
-    def run_mode(self):
-        # type: () -> str
-        """The mode to run the task in, normal, process or thread"""
-
-    @run_mode.setter
-    @abc.abstractmethod
-    def run_mode(self, new_mode):
-        # type: (str) -> None
-        pass
-
-    @property
-    @abc.abstractmethod
     def time_estimate(self):
         # type: () -> float
         """estimated total run time"""
@@ -178,8 +165,7 @@ class BaseTask(object):
         """Request reservations for all resources
 
         Returns:
-            (bool):
-                True if all resources were reserved
+            bool: True if all resources were reserved
 
         """
 
@@ -199,8 +185,7 @@ class BaseTask(object):
         """delay all resource reservations
 
         Returns:
-            (bool):
-                True if all resources are reserved
+            bool: True if all resources are reserved
 
         """
 
@@ -210,7 +195,7 @@ class BaseTask(object):
         """Verify all requirements for executing the task are met
 
         Returns:
-            (bool): True if all requirements are met
+            bool: True if all requirements are met
 
         """
 
@@ -220,8 +205,7 @@ class BaseTask(object):
         """check if all resources are reserved for the task
 
         Returns:
-            (bool):
-                True if all resources are ready
+            bool: True if all resources are ready
 
         """
 
@@ -283,7 +267,7 @@ class Task(BaseTask):
         global_params_in(dict): Global dictionary of parameters used
                                 to configure the environment.
                                 This dictionary will also be passed
-                                to the registered task functions.
+                                to all registered task functions.
 
         schema_add (dict): (Optional) Additional
                            `Cerberus <http://docs.python-cerberus.org/en/stable/>`_
@@ -300,7 +284,6 @@ class Task(BaseTask):
         self._ats_client = None
         self._name = None
         self._addition_schema = schema_add
-        self._run_mode = None
 
         # these are built by the class
         self._missing_keys = None
@@ -476,21 +459,6 @@ class Task(BaseTask):
 
         self.params = self.get_params()
 
-    @property
-    def run_mode(self):
-        # type: () -> str
-        """The mode to run the task in, normal, process or thread"""
-
-        if self._run_mode is None:
-            self._run_mode = "normal"
-        return self._run_mode
-
-    @run_mode.setter
-    def run_mode(self, new_mode):
-        # type: (str) -> None
-
-        self._run_mode = new_mode
-
     def _init_resource_list(self):
         """Build the list of resources"""
 
@@ -538,8 +506,7 @@ class Task(BaseTask):
         """Request reservations for all resources
 
         Returns:
-            (bool):
-                True if all resources were reserved
+            bool: True if all resources were reserved
 
         """
 
@@ -579,8 +546,7 @@ class Task(BaseTask):
             this method will reset the time_window
 
         Returns:
-            (bool):
-                True if all resources are reserved
+            bool: True if all resources are reserved
 
         """
 
@@ -595,7 +561,7 @@ class Task(BaseTask):
         """Verify all requirements for executing the task are met
 
         Returns:
-            (bool): True if all requirements are met
+            bool: True if all requirements are met
 
         Raises:
             MissingTestParamKey:
@@ -622,10 +588,9 @@ class Task(BaseTask):
         """check if all resources are reserved for the task
 
         Returns:
-            (bool):
-                True if an ATS Client is registered and
-                all resources are reserved, will also
-                return True if an ATS Client is not registered
+            bool: True if an ATS Client is registered and
+                  all resources are reserved, will also
+                  return True if an ATS Client is not registered
 
         """
 
@@ -680,38 +645,13 @@ class Task(BaseTask):
         return False
 
     def _run_task_func(self, func):
-        """run a function contained in the task
-
-        Args:
-            func (builtin_function_or_method): the function to run
-
-        Returns:
-            (dict)
-
-        Raises:
-            UnsupportedRunMode:
-
-        """
-
-        if self.run_mode == "normal":
-            results = self._run_normal(func)
-        elif self.run_mode == "process":
-            results = self._run_process(func)
-        elif self.run_mode == "thread":
-            results = self._run_thread(func)
-        else:
-            raise UnsupportedRunMode
-
-        return results
-
-    def _run_normal(self, func):
         """run task in normal mode
 
         Args:
             func (builtin_function_or_method): the function to run
 
         Returns:
-            (dict)
+            dict: The results in a dict
 
         """
         results = dict()
@@ -726,24 +666,6 @@ class Task(BaseTask):
             results['result'] = "Exception"
             results['metadata'] = {"exception_details": err}
         return results
-
-    def _run_thread(self, func):
-        """run task in a thread
-
-        Args:
-            func (builtin_function_or_method): the function to run
-
-        """
-        raise NotImplementedError
-
-    def _run_process(self, func):
-        """run task in a new process
-
-        Args:
-            func (builtin_function_or_method): the function to run
-
-        """
-        raise NotImplementedError
 
     def get_params(self):
         # type: () -> dict

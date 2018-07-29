@@ -6,15 +6,20 @@ result:
 # optional dictionary of extra metadata to be reported
 metadata:
     type: dict
-    nullable: True
-    default: null
     required: True
+    default: {}
+    schema:
+        message:
+            type: string
+            required: True
+            empty: True
+            default: ''
 # optional key for reporting multiple test results
 # via the registered reporting function
 multi_result:
     type: list
-    nullable: True
-    default: null
+    schema:
+        type: dict
         schema:
             name:
                 type: string
@@ -22,11 +27,17 @@ multi_result:
             description:
                 type: string
                 required: True
+                default: ''
             result:
                 type: string
                 required: True
             metadata:
                 type: dict
-                nullable: True
-                default: null
                 required: True
+                default: {}
+                schema:
+                    message:
+                        type: string
+                        required: True
+                        empty: True
+                        default: ''

@@ -17,6 +17,7 @@ Contents:
     kissats.ats_resource
     sample_resource
     kissats.common
+    kissats.queues
     kissats.schemas.schemas
     kissats.exceptions
     todo

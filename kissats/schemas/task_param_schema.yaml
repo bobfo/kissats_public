@@ -84,6 +84,11 @@ prereq_tasks:
     schema:
         type: string
     required: True
+# All prereq_tasks must have been run in the same thread/process
+prereq_same_thread:
+    type: boolean
+    default: True
+    required: True
 # estimated test time in seconds (including optional
 # task_setup and task_teardown execution time)
 est_task_time:

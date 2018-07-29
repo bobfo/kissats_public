@@ -34,7 +34,7 @@ class ResourceReservation(object):
 
         super(ResourceReservation, self).__init__()
 
-        self._resource_name = resource_name
+        self._name = resource_name
         self._max_retry = max_retry
         self._reservation_id = None
         self._pre_reservation_id = None
@@ -53,18 +53,18 @@ class ResourceReservation(object):
     def __eq__(self, other):
 
         if other.__class__ is ResourceReservation:
-            return self.resource_name == other.resource_name
+            return self.name == other.name
         elif other.__class__ is str:
-            return self.resource_name == other
+            return self.name == other
 
         return self == other
 
     def __ne__(self, other):
 
         if other.__class__ is ResourceReservation:
-            return self.resource_name != other.resource_name
+            return self.name != other.name
         elif other.__class__ is str:
-            return self.resource_name != other
+            return self.name != other
 
         return self != other
 
@@ -81,10 +81,10 @@ class ResourceReservation(object):
         self.release_reservation()
 
     @property
-    def resource_name(self):
+    def name(self):
         """Name of the resource"""
 
-        return self._resource_name
+        return self._name
 
     @property
     def resource_config(self):
@@ -229,7 +229,7 @@ class ResourceReservation(object):
         """Claim reservation
 
         Returns:
-            (bool): True if successful
+            bool: True if successful
 
         """
 
@@ -272,7 +272,7 @@ class ResourceReservation(object):
         try:
             (self._pre_reservation_id,
              self._start_time,
-             self._pre_res_expire) = self._ats_client.get_future_reservation(self.resource_name,
+             self._pre_res_expire) = self._ats_client.get_future_reservation(self.name,
                                                                              self.start_time,
                                                                              self.end_time-self.start_time,  # noqa: E501
                                                                              self.resource_config,
@@ -295,13 +295,13 @@ class ResourceReservation(object):
             Does not reserve or claim the resource
 
         Returns:
-            (dict): min keys:
+            dict: min keys:
                         * available (bool) True if available at the time requested
                         * avail_start (float)
                         * avail_end (float)
 
         """
 
-        return self._ats_client.get_resource_availablity(self.resource_name,
+        return self._ats_client.get_resource_availablity(self.name,
                                                          self.start_time,
                                                          self.end_time)

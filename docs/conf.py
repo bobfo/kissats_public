@@ -26,22 +26,10 @@ copyright = u'2018, Bob Folkes'
 author = u'Bob Folkes'
 
 
-def get_short_version():
-    """
-    Gets the short version (X.Y).
-
-    Returns:
-        str: The short version of this package.
-    """
-
-    m = re.search(r"(^\d+\.\d+)", kissats.__version__)
-    return m.groups(1)[0]
-
-
 # The short X.Y version
-version = "1.0.0a5"
+version = "1.0.0a6"
 # The full version, including alpha/beta/rc tags
-release = "1.0.0a5"
+release = "1.0.0a6"
 
 
 # -- General configuration ---------------------------------------------------

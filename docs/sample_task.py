@@ -107,7 +107,7 @@ def task_main(global_params):
     return {'result': result, 'metadata': task_message, 'multi_result': multi_result}
 
 
-def test_teardown(global_params):
+def task_teardown(global_params):
     """Teardown action for this task.
 
     required return value is None

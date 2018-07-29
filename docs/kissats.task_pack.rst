@@ -81,3 +81,13 @@ TaskPack Class
     :undoc-members:
     :inherited-members:
     :show-inheritance:
+
+
+PackParams Class
+----------------
+
+.. autoclass:: kissats.task_pack.PackParams
+    :members:
+    :undoc-members:
+    :inherited-members:
+    :show-inheritance:
